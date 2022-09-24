@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'main',
+    'nodes',
 ]
 
 MIDDLEWARE = [
@@ -133,6 +133,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 ENTSOE_API_KEY = None
+
+NODE_LOGIC_CLASSES = [
+    'nodes.logics.SimpleCheapestHours',
+    'nodes.logics.TapoP100',
+]
 
 
 from .local_settings import *

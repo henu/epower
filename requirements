@@ -1,4 +1,5 @@
 Django==4.1.1
 entsoe-py==0.5.8
-pymemcache==3.5.2
 pandas==1.4.4
+pymemcache==3.5.2
+PyP100==0.0.19
