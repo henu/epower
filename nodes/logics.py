@@ -1,9 +1,14 @@
 import dateutil
 import decimal
+import re
 
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from PyP100 import PyP100
+
+
+IP_VALIDATION_RE = re.compile('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$')
 
 
 class Logic:
@@ -28,6 +33,9 @@ class Logic:
 
     def apply_state_to_devices(self):
         pass
+
+    def get_settings_error(self, settings):
+        raise NotImplementedError()
 
 
 class SimpleCheapestHours(Logic):
@@ -105,6 +113,31 @@ class SimpleCheapestHours(Logic):
         # Store new state of node
         self.node.set_state({'hours': [(start.isoformat(), end.isoformat()) for start, end in hours]})
 
+    def get_settings_error(self, settings):
+
+        if 'on_hours' not in settings:
+            if not self.node:
+                return _('Missing "{}"!').format('on_hours')
+            on_hours = self.node.settings.get('on_hours', SimpleCheapestHours.DEFAULT_ON_HOURS)
+        else:
+            on_hours = settings['on_hours']
+            if not isinstance(on_hours, int):
+                return _('Invalid type for "{}"!').format('on_hours')
+            if on_hours < 1 or on_hours > 23:
+                return _('Invalid value for "{}"!').format('on_hours')
+
+        if 'min_off_hours' not in settings:
+            if not self.node:
+                return _('Missing "{}"!').format('min_off_hours')
+        else:
+            min_off_hours = settings['min_off_hours']
+            if not isinstance(min_off_hours, int):
+                return _('Invalid type for "{}"!').format('min_off_hours')
+            if min_off_hours < 0 or min_off_hours > 23 - on_hours:
+                return _('Invalid value for "{}"!').format('min_off_hours')
+
+        return None
+
 
 class TapoP100(Logic):
 
@@ -128,3 +161,33 @@ class TapoP100(Logic):
             p100.turnOn()
         else:
             p100.turnOff()
+
+    def get_settings_error(self, settings, instance=None):
+        ip = settings.get('ip')
+
+        if not ip:
+            if not self.node:
+                return _('Missing "{}"!').format('ip')
+        else:
+            if not isinstance(ip, str):
+                return _('Invalid type for "{}"!').format('ip')
+            if not IP_VALIDATION_RE.match(ip):
+                return _('Invalid value for "{}"!').format('ip')
+
+        username = settings.get('username')
+        if not username:
+            if not self.node:
+                return _('Missing "{}"!').format('username')
+        else:
+            if not isinstance(username, str):
+                return _('Invalid type for "{}"!').format('username')
+
+        password = settings.get('password')
+        if not password:
+            if not self.node:
+                return _('Missing "{}"!').format('password')
+        else:
+            if not isinstance(password, str):
+                return _('Invalid type for "{}"!').format('password')
+
+        return None

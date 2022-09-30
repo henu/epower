@@ -1,9 +1,10 @@
-import importlib
 import json
 
 from django.conf import settings
 from django.core.cache import cache
 from django.db import models
+
+from . import utils
 
 
 class Node(models.Model):
@@ -26,12 +27,7 @@ class Node(models.Model):
         if self.logic_class not in settings.NODE_LOGIC_CLASSES:
             raise Exception('Invalid logic_class!')
 
-        # Find the class
-        logic_class_splitted = self.logic_class.split('.')
-        module_name = '.'.join(logic_class_splitted[:-1])
-        class_name = logic_class_splitted[-1]
-        module = importlib.import_module(module_name)
-        cls = getattr(module, class_name)
+        cls = utils.import_dot_path(self.logic_class)
 
         # Create a new instance from the class
         return cls(self)
