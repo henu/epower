@@ -55,3 +55,46 @@ class NodeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'settings': node_settings_error})
 
         return super().update(instance, validated_data)
+
+
+class ConnectionSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.Connection
+        fields = (
+            'id',
+            'source',
+            'source_key',
+            'dest',
+            'dest_key',
+        )
+
+    def get_state(self, obj):
+        return obj.get_state()
+
+    def create(self, validated_data):
+        # Validate source and destination keys exist
+        if not self._node_key_exists(validated_data.get('source'), validated_data.get('source_key'), True):
+            raise serializers.ValidationError({'source_key': _('Invalid source key!')})
+        if not self._node_key_exists(validated_data.get('dest'), validated_data.get('dest_key'), False):
+            raise serializers.ValidationError({'dest_key': _('Invalid destination key!')})
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Validate source and destination keys exist
+        if not self._node_key_exists(validated_data.get('source'), validated_data.get('source_key'), True):
+            raise serializers.ValidationError({'source_key': _('Invalid source key!')})
+        if not self._node_key_exists(validated_data.get('dest'), validated_data.get('dest_key'), False):
+            raise serializers.ValidationError({'dest_key': _('Invalid destination key!')})
+
+        return super().update(instance, validated_data)
+
+    def _node_key_exists(self, node, node_key, is_output):
+        if not node:
+            # If node ID was invalid, then it is of course an error, but it
+            # is checked elsewhere, so it's not a concern of this function.
+            return True
+        if is_output:
+            return node_key in node.get_logic().get_output_keys()
+        return node_key in node.get_logic().get_input_keys()

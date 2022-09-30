@@ -49,3 +49,8 @@ class Connection(models.Model):
 
     def __str__(self):
         return f'{self.source} ({self.source_key}) -> {self.dest} ({self.dest_key})'
+
+    class Meta:
+        unique_together = (
+            ('dest', 'dest_key'),
+        )
