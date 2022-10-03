@@ -9,6 +9,8 @@ from . import models, utils
 class NodeSerializer(serializers.ModelSerializer):
 
     state = serializers.SerializerMethodField()
+    inputs = serializers.SerializerMethodField()
+    outputs = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Node
@@ -17,11 +19,23 @@ class NodeSerializer(serializers.ModelSerializer):
             'name',
             'logic_class',
             'settings',
+            'pos_x',
+            'pos_y',
             'state',
+            'inputs',
+            'outputs',
         )
 
     def get_state(self, obj):
         return obj.get_state()
+
+    def get_inputs(self, obj):
+        logic = obj.get_logic()
+        return sorted(logic.get_input_keys())
+
+    def get_outputs(self, obj):
+        logic = obj.get_logic()
+        return sorted(logic.get_output_keys())
 
     def create(self, validated_data):
         # Validate logic class

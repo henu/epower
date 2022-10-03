@@ -15,6 +15,10 @@ class Node(models.Model):
 
     settings = models.JSONField()
 
+    # These are used only for graphical representation
+    pos_x = models.FloatField(default=0)
+    pos_y = models.FloatField(default=0)
+
     def get_state(self):
         return json.loads(cache.get(self._state_cache_key()) or '{}')
 

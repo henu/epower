@@ -44,7 +44,7 @@ class SimpleCheapestHours(Logic):
     DEFAULT_MIN_OFF_HOURS = 12
 
     def get_output_keys(self):
-        return {'default'}
+        return {'power'}
 
     def get_output_values(self):
         # Check all hours. If any of them is now, then return active signal
@@ -53,8 +53,8 @@ class SimpleCheapestHours(Logic):
             start = dateutil.parser.parse(start)
             end = dateutil.parser.parse(end)
             if start <= timezone.now() <= end:
-                return {'default': 1}
-        return {'default': 0}
+                return {'power': 1}
+        return {'power': 0}
 
     def handle_updated_prices(self, prices):
 
@@ -142,10 +142,10 @@ class SimpleCheapestHours(Logic):
 class TapoP100(Logic):
 
     def get_input_keys(self):
-        return {'default'}
+        return {'power'}
 
     def handle_inputs_changed(self, inputs):
-        self.node.set_state({'power': bool(inputs.get('default'))})
+        self.node.set_state({'power': bool(inputs.get('power'))})
 
     def apply_state_to_devices(self):
         # Get settings
