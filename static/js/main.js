@@ -24,7 +24,7 @@ function constructUi()
     );
 }
 
-function updateNodes(data)
+function updateUi(nodes)
 {
     var svg = document.getElementById('nodes_svg');
 
@@ -35,7 +35,7 @@ function updateNodes(data)
     }
 
     // Use data to construct or update SVG elements
-    data.forEach(function(node) {
+    nodes.forEach(function(node) {
         // Group elements
         var node_svg = svg.appendChild(makeSvgElement('g', {
             id: 'node_svg_' + node.id,
@@ -92,26 +92,20 @@ function updateNodes(data)
     });
 }
 
-function fetchAndUpdateNodes()
+function fetchDataAndUpdateUi()
 {
-    $.ajax({
-        url: '/api/v1/nodes/',
-        success: function(data, text_status, request) {
-            updateNodes(data);
-        },
-    });
-}
-
-function initialNodeFetchAndUpdate()
-{
-    $.ajax({
-        url: '/api/v1/nodes/',
-        success: function(data, text_status, request) {
-            updateNodes(data);
-        },
-        complete: function(request, test_status) {
-            setInterval(fetchAndUpdateNodes, 5000);
-        },
+    return new Promise(function(resolve, reject) {
+        $.ajax({
+            url: '/api/v1/nodes/',
+        }).then(
+            function(nodes_data, text_status, request) {
+                updateUi(nodes_data);
+                resolve();
+            },
+            function(request, text_status, error_thrown) {
+                reject();
+            },
+        );
     });
 }
 
@@ -120,6 +114,16 @@ $(window).on('load', function() {
     constructUi();
 
     // Do the initial fetching of node data
-    initialNodeFetchAndUpdate();
-
+    fetchDataAndUpdateUi().then(
+        function() {
+            setInterval(function() {
+                fetchDataAndUpdateUi().then();
+            }, 5000);
+        },
+        function() {
+            setInterval(function() {
+                fetchDataAndUpdateUi().then();
+            }, 5000);
+        },
+    );
 });
