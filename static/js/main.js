@@ -24,7 +24,7 @@ function constructUi()
     );
 }
 
-function updateUi(nodes)
+function updateUi(nodes, connections)
 {
     var svg = document.getElementById('nodes_svg');
 
@@ -33,8 +33,37 @@ function updateUi(nodes)
     while (nodes_svg.length > 0) {
         nodes_svg[0].remove();
     }
+    var nodes_svg = svg.getElementsByTagName('path');
+    while (nodes_svg.length > 0) {
+        nodes_svg[0].remove();
+    }
 
-    // Use data to construct or update SVG elements
+    // Make a map for positions where connections should be connected to
+    var input_output_poss = [];
+    nodes.forEach(function(node) {
+        // Inputs
+        for (var input_i = 0; input_i < node.inputs.length; ++ input_i) {
+            input_output_poss[node.id + '_i_' + node.inputs[input_i]] = [node.pos_x + 0, node.pos_y + 32 + 12 * input_i];
+        }
+        // Outputs
+        for (var output_i = 0; output_i < node.outputs.length; ++ output_i) {
+            input_output_poss[node.id + '_o_' + node.outputs[output_i]] = [node.pos_x + 200, node.pos_y + 32 + 12 * output_i];
+        }
+    });
+
+    // Construct connections
+    connections.forEach(function(connection) {
+        var source_pos = input_output_poss[connection.source + '_o_' + connection.source_key];
+        var dest_pos = input_output_poss[connection.dest + '_i_' + connection.dest_key];
+        svg.appendChild(makeSvgElement('path', {
+            d: 'M ' + source_pos[0] + ' ' + source_pos[1] + ' C ' + (source_pos[0] + 100) + ' ' + source_pos[1] + ' ' + (dest_pos[0] - 100) + ' ' + dest_pos[1] + ' ' + dest_pos[0] + ' ' + dest_pos[1],
+            stroke: '#333',
+            'stroke-width': '2',
+            fill: 'transparent',
+        }));
+    });
+
+    // Construct nodes
     nodes.forEach(function(node) {
         // Group elements
         var node_svg = svg.appendChild(makeSvgElement('g', {
@@ -99,8 +128,15 @@ function fetchDataAndUpdateUi()
             url: '/api/v1/nodes/',
         }).then(
             function(nodes_data, text_status, request) {
-                updateUi(nodes_data);
-                resolve();
+                $.ajax({ url: '/api/v1/connections/' }).then(
+                    function(connections_data, text_status, request) {
+                        updateUi(nodes_data, connections_data);
+                        resolve();
+                    },
+                    function(request, text_status, error_thrown) {
+                        reject();
+                    },
+                );
             },
             function(request, text_status, error_thrown) {
                 reject();
