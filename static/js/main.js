@@ -182,8 +182,12 @@ function reconstructNodesAndConnectionsToUi()
     for (var [connection_id, connection] of Object.entries(UI.connections)) {
         var source_pos = input_output_poss[connection.source + '_o_' + connection.source_key];
         var dest_pos = input_output_poss[connection.dest + '_i_' + connection.dest_key];
+        var diff_x = dest_pos[0] - source_pos[0];
+        var diff_y = dest_pos[1] - source_pos[1];
+        const source_dest_distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+        const curve_strength = source_dest_distance / 2;
         svg.appendChild(makeSvgElement('path', {
-            d: 'M ' + source_pos[0] + ' ' + source_pos[1] + ' C ' + (source_pos[0] + 100) + ' ' + source_pos[1] + ' ' + (dest_pos[0] - 100) + ' ' + dest_pos[1] + ' ' + dest_pos[0] + ' ' + dest_pos[1],
+            d: 'M ' + source_pos[0] + ' ' + source_pos[1] + ' C ' + (source_pos[0] + curve_strength) + ' ' + source_pos[1] + ' ' + (dest_pos[0] - curve_strength) + ' ' + dest_pos[1] + ' ' + dest_pos[0] + ' ' + dest_pos[1],
             stroke: '#333',
             'stroke-width': '2',
             fill: 'transparent',
