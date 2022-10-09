@@ -21,32 +21,123 @@ function startMovingNode(node_id, cursor_x, cursor_y)
     UI.moving_node_offset_y = cursor_y - UI.nodes[node_id].pos_y;
 }
 
+function startMovingConnectionSource(node_id, key, cursor_x, cursor_y)
+{
+    // Try to find connection that begins from here
+    for (var [connection_id, connection] of Object.entries(UI.connections)) {
+        if (connection.source == node_id && connection.source_key == key) {
+            UI.moving_connection_id = Number(connection_id);
+            UI.moving_connection_source = true;
+            UI.moving_connection_pos = [cursor_x, cursor_y];
+            reconstructNodesAndConnectionsToUi();
+            return;
+        }
+    }
+}
+
+function startMovingConnectionDestination(node_id, key, cursor_x, cursor_y)
+{
+    // Try to find connection that ends to here
+    for (var [connection_id, connection] of Object.entries(UI.connections)) {
+        if (connection.dest == node_id && connection.dest_key == key) {
+            UI.moving_connection_id = Number(connection_id);
+            UI.moving_connection_source = false;
+            UI.moving_connection_pos = [cursor_x, cursor_y];
+            reconstructNodesAndConnectionsToUi();
+            return;
+        }
+    }
+}
+
 function handleMouseMove(event)
 {
     if (UI.moving_node_id) {
         UI.nodes[UI.moving_node_id].pos_x = event.originalEvent.x - UI.moving_node_offset_x;
         UI.nodes[UI.moving_node_id].pos_y = event.originalEvent.y - UI.moving_node_offset_y;
         reconstructNodesAndConnectionsToUi();
-    };
+    } else if (UI.moving_connection_id) {
+        UI.moving_connection_pos = [event.originalEvent.x, event.originalEvent.y];
+        reconstructNodesAndConnectionsToUi();
+    }
 }
 
 function handleMouseUp(event)
 {
-    if (event.originalEvent.button == 0 && UI.moving_node_id) {
-        // Update position to server
-        var new_pos_x = event.originalEvent.x - UI.moving_node_offset_x;
-        var new_pos_y = event.originalEvent.y - UI.moving_node_offset_y;
-        $.ajax({
-            url: '/api/v1/nodes/' + UI.moving_node_id + '/',
-            method: 'PATCH',
-            headers: {'X-CSRFToken': window.csrf_token},
-            data: {
-                pos_x: new_pos_x,
-                pos_y: new_pos_y,
-            },
-        });
-        // Mark moving stopped
-        UI.moving_node_id = null;
+    if (event.originalEvent.button == 0) {
+        if (UI.moving_node_id) {
+            // Update position to server
+            var new_pos_x = event.originalEvent.x - UI.moving_node_offset_x;
+            var new_pos_y = event.originalEvent.y - UI.moving_node_offset_y;
+            $.ajax({
+                url: '/api/v1/nodes/' + UI.moving_node_id + '/',
+                method: 'PATCH',
+                headers: {'X-CSRFToken': window.csrf_token},
+                data: {
+                    pos_x: new_pos_x,
+                    pos_y: new_pos_y,
+                },
+            });
+            // Mark moving stopped
+            UI.moving_node_id = null;
+        } else if (UI.moving_connection_id) {
+            var svg = document.getElementById('nodes_svg');
+            // Check if any of the nodes is close enough this
+            var nearest_distance = 20;
+            var nearest_node_id = null;
+            var nearest_key = null;
+            for (var [node_id, node] of Object.entries(UI.nodes)) {
+                if (UI.moving_connection_source) {
+                    for (var output_i = 0; output_i < node.outputs.length; ++ output_i) {
+                        const diff_x = node.pos_x + 200 - (event.originalEvent.x - svg.getBoundingClientRect().x);
+                        const diff_y = node.pos_y + 32 + 12 * output_i - (event.originalEvent.y - svg.getBoundingClientRect().y);
+                        const distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+                        if (distance < nearest_distance) {
+                            nearest_distance = distance;
+                            nearest_node_id = node.id;
+                            nearest_key = node.outputs[output_i];
+                        }
+                    }
+                } else {
+                    for (var input_i = 0; input_i < node.inputs.length; ++ input_i) {
+                        const diff_x = node.pos_x - (event.originalEvent.x - svg.getBoundingClientRect().x);
+                        const diff_y = node.pos_y + 32 + 12 * input_i - (event.originalEvent.y - svg.getBoundingClientRect().y);
+                        const distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+                        if (distance < nearest_distance) {
+                            nearest_distance = distance;
+                            nearest_node_id = node.id;
+                            nearest_key = node.inputs[input_i];
+                        }
+                    }
+                }
+            }
+            if (nearest_node_id) {
+                var data = null;
+                if (UI.moving_connection_source) {
+                    UI.connections[UI.moving_connection_id].source = nearest_node_id;
+                    UI.connections[UI.moving_connection_id].source_key = nearest_key;
+                    data = {
+                        source: nearest_node_id,
+                        source_key: nearest_key,
+                    };
+                } else {
+                    UI.connections[UI.moving_connection_id].dest = nearest_node_id;
+                    UI.connections[UI.moving_connection_id].dest_key = nearest_key;
+                    data = {
+                        dest: nearest_node_id,
+                        dest_key: nearest_key,
+                    };
+                }
+                $.ajax({
+                    url: '/api/v1/connections/' + UI.moving_connection_id + '/',
+                    method: 'PATCH',
+                    headers: {'X-CSRFToken': window.csrf_token},
+                    data: data,
+                });
+            }
+
+            UI.moving_connection_id = null;
+            reconstructNodesAndConnectionsToUi();
+        }
     }
 }
 
@@ -180,8 +271,24 @@ function reconstructNodesAndConnectionsToUi()
 
     // Construct connections
     for (var [connection_id, connection] of Object.entries(UI.connections)) {
+        // Get source and destination positions
         var source_pos = input_output_poss[connection.source + '_o_' + connection.source_key];
         var dest_pos = input_output_poss[connection.dest + '_i_' + connection.dest_key];
+        // If this connection is being dragged, then modify source or destination position
+        if (UI.moving_connection_id == Number(connection_id)) {
+            if (UI.moving_connection_source) {
+                source_pos = [
+                    UI.moving_connection_pos[0] - svg.getBoundingClientRect().x,
+                    UI.moving_connection_pos[1] - svg.getBoundingClientRect().y,
+                ]
+            } else {
+                dest_pos = [
+                    UI.moving_connection_pos[0] - svg.getBoundingClientRect().x,
+                    UI.moving_connection_pos[1] - svg.getBoundingClientRect().y,
+                ]
+            }
+        }
+
         var diff_x = dest_pos[0] - source_pos[0];
         var diff_y = dest_pos[1] - source_pos[1];
         const source_dest_distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
@@ -224,36 +331,48 @@ function reconstructNodesAndConnectionsToUi()
         })).textContent = node.name;
         // Inputs
         for (var input_i = 0; input_i < node.inputs.length; ++ input_i) {
+            const input_key = node.inputs[input_i];
             // Dot
-            node_svg.appendChild(makeSvgElement('circle', {
+            var node_circle = node_svg.appendChild(makeSvgElement('circle', {
                 cx: 0,
                 cy: 32 + 12 * input_i,
                 r: 5,
                 class: 'input_output_dot',
             }));
+            $(node_circle).mousedown(function(event) {
+                if (event.originalEvent.button == 0) {
+                    startMovingConnectionDestination(node_id2, input_key, event.originalEvent.x, event.originalEvent.y);
+                }
+            });
             // Text
             node_svg.appendChild(makeSvgElement('text', {
                 x: 8,
                 y: 36 + 12 * input_i,
                 class: 'input_output_name',
-            })).textContent = node.inputs[input_i];
+            })).textContent = input_key;
         }
         // Outputs
         for (var output_i = 0; output_i < node.outputs.length; ++ output_i) {
+            const output_key = node.outputs[output_i];
             // Dot
-            node_svg.appendChild(makeSvgElement('circle', {
+            var node_circle = node_svg.appendChild(makeSvgElement('circle', {
                 cx: 200,
                 cy: 32 + 12 * output_i,
                 r: 5,
                 class: 'input_output_dot',
             }));
+            $(node_circle).mousedown(function(event) {
+                if (event.originalEvent.button == 0) {
+                    startMovingConnectionSource(node_id2, output_key, event.originalEvent.x, event.originalEvent.y);
+                }
+            });
             // Text
             node_svg.appendChild(makeSvgElement('text', {
                 x: 200 - 8,
                 y: 36 + 12 * output_i,
                 class: 'input_output_name',
                 'text-anchor': 'end',
-            })).textContent = node.outputs[output_i];
+            })).textContent = output_key;
         }
     }
 }
