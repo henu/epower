@@ -33,6 +33,11 @@ function startMovingConnectionSource(node_id, key, cursor_x, cursor_y)
             return;
         }
     }
+    // If there was no connection, then start constructing a new one
+    UI.adding_connection_source = node_id;
+    UI.adding_connection_source_key = key;
+    UI.adding_connection_pos = [cursor_x, cursor_y];
+    UI.adding_connection_waiting_ajax = false;
 }
 
 function startMovingConnectionDestination(node_id, key, cursor_x, cursor_y)
@@ -47,6 +52,11 @@ function startMovingConnectionDestination(node_id, key, cursor_x, cursor_y)
             return;
         }
     }
+    // If there was no connection, then start constructing a new one
+    UI.adding_connection_dest = node_id;
+    UI.adding_connection_dest_key = key;
+    UI.adding_connection_pos = [cursor_x, cursor_y];
+    UI.adding_connection_waiting_ajax = false;
 }
 
 function handleMouseMove(event)
@@ -58,12 +68,16 @@ function handleMouseMove(event)
     } else if (UI.moving_connection_id) {
         UI.moving_connection_pos = [event.originalEvent.x, event.originalEvent.y];
         reconstructNodesAndConnectionsToUi();
+    } else if ((UI.adding_connection_source || UI.adding_connection_dest) && !UI.adding_connection_waiting_ajax) {
+        UI.adding_connection_pos = [event.originalEvent.x, event.originalEvent.y];
+        reconstructNodesAndConnectionsToUi();
     }
 }
 
 function handleMouseUp(event)
 {
     if (event.originalEvent.button == 0) {
+        // Moving node
         if (UI.moving_node_id) {
             // Update position to server
             var new_pos_x = event.originalEvent.x - UI.moving_node_offset_x;
@@ -79,7 +93,9 @@ function handleMouseUp(event)
             });
             // Mark moving stopped
             UI.moving_node_id = null;
-        } else if (UI.moving_connection_id) {
+        }
+        // Moving connection
+        else if (UI.moving_connection_id) {
             var svg = document.getElementById('nodes_svg');
             // Check if any of the nodes is close enough this
             var nearest_distance = 20;
@@ -148,7 +164,127 @@ function handleMouseUp(event)
             UI.moving_connection_id = null;
             reconstructNodesAndConnectionsToUi();
         }
+        // Adding a new connection from specific source to somewhere
+        else if (UI.adding_connection_source) {
+            var svg = document.getElementById('nodes_svg');
+            // Check if any of the nodes is close enough this
+            var nearest_distance = 20;
+            var nearest_node_id = null;
+            var nearest_key = null;
+            for (var [node_id, node] of Object.entries(UI.nodes)) {
+                for (var input_i = 0; input_i < node.inputs.length; ++ input_i) {
+                    const diff_x = node.pos_x - (event.originalEvent.x - svg.getBoundingClientRect().x);
+                    const diff_y = node.pos_y + 32 + 12 * input_i - (event.originalEvent.y - svg.getBoundingClientRect().y);
+                    const distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+                    if (distance < nearest_distance) {
+                        nearest_distance = distance;
+                        nearest_node_id = node.id;
+                        nearest_key = node.inputs[input_i];
+                    }
+                }
+            }
+            // If nearest node was found, then create new connection
+            if (nearest_node_id) {
+                var data = {
+                    source: UI.adding_connection_source,
+                    source_key: UI.adding_connection_source_key,
+                    dest: nearest_node_id,
+                    dest_key: nearest_key,
+                };
+                $.ajax({
+                    url: '/api/v1/connections/',
+                    method: 'POST',
+                    headers: {'X-CSRFToken': window.csrf_token},
+                    data: data,
+                }).then(
+                    function(connection_data, text_status, request) {
+                        UI.connections[connection_data.id] = connection_data;
+                        UI.adding_connection_source = null;
+                        reconstructNodesAndConnectionsToUi();
+                    },
+                    function(request, text_status, error_thrown) {
+                        // If connection failed, then just give up
+                        UI.adding_connection_source = null;
+                        reconstructNodesAndConnectionsToUi();
+                    },
+                );
+                // Mark ajax being waited
+                UI.adding_connection_waiting_ajax = true;
+            }
+            // If nearest node was not found, then just cancel connection adding
+            else {
+                UI.adding_connection_source = null;
+                reconstructNodesAndConnectionsToUi();
+            }
+        }
+        // Adding a new connection to specific source from somewhere
+        else if (UI.adding_connection_dest) {
+            var svg = document.getElementById('nodes_svg');
+            // Check if any of the nodes is close enough this
+            var nearest_distance = 20;
+            var nearest_node_id = null;
+            var nearest_key = null;
+            for (var [node_id, node] of Object.entries(UI.nodes)) {
+                for (var output_i = 0; output_i < node.outputs.length; ++ output_i) {
+                    const diff_x = node.pos_x + 200 - (event.originalEvent.x - svg.getBoundingClientRect().x);
+                    const diff_y = node.pos_y + 32 + 12 * output_i - (event.originalEvent.y - svg.getBoundingClientRect().y);
+                    const distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+                    if (distance < nearest_distance) {
+                        nearest_distance = distance;
+                        nearest_node_id = node.id;
+                        nearest_key = node.outputs[output_i];
+                    }
+                }
+            }
+            // If nearest node was found, then create new connection
+            if (nearest_node_id) {
+                var data = {
+                    source: nearest_node_id,
+                    source_key: nearest_key,
+                    dest: UI.adding_connection_dest,
+                    dest_key: UI.adding_connection_dest_key,
+                };
+                $.ajax({
+                    url: '/api/v1/connections/',
+                    method: 'POST',
+                    headers: {'X-CSRFToken': window.csrf_token},
+                    data: data,
+                }).then(
+                    function(connection_data, text_status, request) {
+                        UI.connections[connection_data.id] = connection_data;
+                        UI.adding_connection_dest = null;
+                        reconstructNodesAndConnectionsToUi();
+                    },
+                    function(request, text_status, error_thrown) {
+                        // If connection failed, then just give up
+                        UI.adding_connection_dest = null;
+                        reconstructNodesAndConnectionsToUi();
+                    },
+                );
+                // Mark ajax being waited
+                UI.adding_connection_waiting_ajax = true;
+            }
+            // If nearest node was not found, then just cancel connection adding
+            else {
+                UI.adding_connection_dest = null;
+                reconstructNodesAndConnectionsToUi();
+            }
+        }
     }
+}
+
+function addCurve(svg, source_pos, dest_pos)
+{
+    var diff_x = dest_pos[0] - source_pos[0];
+    var diff_y = dest_pos[1] - source_pos[1];
+    const source_dest_distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+    const curve_strength = source_dest_distance / 2;
+    svg.appendChild(makeSvgElement('path', {
+        d: 'M ' + source_pos[0] + ' ' + source_pos[1] + ' C ' + (source_pos[0] + curve_strength) + ' ' + source_pos[1] + ' ' + (dest_pos[0] - curve_strength) + ' ' + dest_pos[1] + ' ' + dest_pos[0] + ' ' + dest_pos[1],
+        stroke: '#333',
+        'stroke-width': '2',
+        fill: 'transparent',
+    }));
 }
 
 function arraysEqual(arr1, arr2)
@@ -299,16 +435,24 @@ function reconstructNodesAndConnectionsToUi()
             }
         }
 
-        var diff_x = dest_pos[0] - source_pos[0];
-        var diff_y = dest_pos[1] - source_pos[1];
-        const source_dest_distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
-        const curve_strength = source_dest_distance / 2;
-        svg.appendChild(makeSvgElement('path', {
-            d: 'M ' + source_pos[0] + ' ' + source_pos[1] + ' C ' + (source_pos[0] + curve_strength) + ' ' + source_pos[1] + ' ' + (dest_pos[0] - curve_strength) + ' ' + dest_pos[1] + ' ' + dest_pos[0] + ' ' + dest_pos[1],
-            stroke: '#333',
-            'stroke-width': '2',
-            fill: 'transparent',
-        }));
+        addCurve(svg, source_pos, dest_pos);
+    }
+
+    // If new connection is being added, then create a path for that too
+    if (UI.adding_connection_source) {
+        var source_pos = input_output_poss[UI.adding_connection_source + '_o_' + UI.adding_connection_source_key];
+        var dest_pos = [
+            UI.adding_connection_pos[0] - svg.getBoundingClientRect().x,
+            UI.adding_connection_pos[1] - svg.getBoundingClientRect().y,
+        ];
+        addCurve(svg, source_pos, dest_pos);
+    } else if (UI.adding_connection_dest) {
+        var source_pos = [
+            UI.adding_connection_pos[0] - svg.getBoundingClientRect().x,
+            UI.adding_connection_pos[1] - svg.getBoundingClientRect().y,
+        ];
+        var dest_pos = input_output_poss[UI.adding_connection_dest + '_i_' + UI.adding_connection_dest_key];
+        addCurve(svg, source_pos, dest_pos);
     }
 
     // Construct nodes
