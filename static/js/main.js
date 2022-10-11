@@ -110,6 +110,7 @@ function handleMouseUp(event)
                     }
                 }
             }
+            // If nearest node was found, then update the connection
             if (nearest_node_id) {
                 var data = null;
                 if (UI.moving_connection_source) {
@@ -133,6 +134,15 @@ function handleMouseUp(event)
                     headers: {'X-CSRFToken': window.csrf_token},
                     data: data,
                 });
+            }
+            // If no node was found, then remove the connection
+            else {
+                $.ajax({
+                    url: '/api/v1/connections/' + UI.moving_connection_id + '/',
+                    method: 'DELETE',
+                    headers: {'X-CSRFToken': window.csrf_token},
+                });
+                delete UI.connections[UI.moving_connection_id];
             }
 
             UI.moving_connection_id = null;
