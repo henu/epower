@@ -1,6 +1,8 @@
-from rest_framework import permissions, viewsets
+from django.conf import settings
 
-from . import models, serializers
+from rest_framework import permissions, response, views, viewsets
+
+from . import models, serializers, utils
 
 
 class NodeViewSet(viewsets.ModelViewSet):
@@ -13,3 +15,15 @@ class ConnectionViewSet(viewsets.ModelViewSet):
     queryset = models.Connection.objects.all().order_by('id')
     serializer_class = serializers.ConnectionSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class LogicsListView(views.APIView):
+
+    def get(self, request):
+        logics = {}
+
+        for logic_class in settings.NODE_LOGIC_CLASSES:
+            cls = utils.import_dot_path(logic_class)
+            logics[logic_class] = cls(None).get_settings_fields()
+
+        return response.Response(logics)

@@ -3,7 +3,7 @@ import decimal
 import re
 
 from django.utils import timezone
-from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy, gettext as _
 
 from PyP100 import PyP100
 
@@ -15,6 +15,9 @@ class Logic:
 
     def __init__(self, node):
         self.node = node
+
+    def get_settings_fields(self):
+        return {}
 
     def get_input_keys(self):
         return set()
@@ -34,7 +37,7 @@ class Logic:
     def apply_state_to_devices(self):
         pass
 
-    def get_settings_error(self, settings):
+    def get_settings_errors(self, settings):
         raise NotImplementedError()
 
 
@@ -42,6 +45,22 @@ class SimpleCheapestHours(Logic):
 
     DEFAULT_ON_HOURS = 4
     DEFAULT_MIN_OFF_HOURS = 12
+
+    def get_settings_fields(self):
+        return {
+            'on_hours': {
+                'type': 'integer',
+                'label': gettext_lazy('"On" state length (h)'),
+                'min': 1,
+                'max': 23
+            },
+            'min_off_hours': {
+                'type': 'integer',
+                'label': gettext_lazy('Minimum time in "off" state (h)'),
+                'min': 0,
+                'max': 23
+            },
+        }
 
     def get_output_keys(self):
         return {'power'}
@@ -113,33 +132,54 @@ class SimpleCheapestHours(Logic):
         # Store new state of node
         self.node.set_state({'hours': [(start.isoformat(), end.isoformat()) for start, end in hours]})
 
-    def get_settings_error(self, settings):
+    def get_settings_errors(self, settings):
+        settings_error = {}
 
         if 'on_hours' not in settings:
             if not self.node:
-                return _('Missing "{}"!').format('on_hours')
+                settings_error['on_hours'] = [_('This field is required!')]
             on_hours = self.node.settings.get('on_hours', SimpleCheapestHours.DEFAULT_ON_HOURS)
         else:
             on_hours = settings['on_hours']
             if not isinstance(on_hours, int):
-                return _('Invalid type for "{}"!').format('on_hours')
-            if on_hours < 1 or on_hours > 23:
-                return _('Invalid value for "{}"!').format('on_hours')
+                settings_error['on_hours'] = [_('Invalid type!')]
+            elif on_hours < 1:
+                settings_error['on_hours'] = [_('Must be at least one!')]
+            elif on_hours > 23:
+                settings_error['on_hours'] = [_('Must be smaller than 24!')]
 
         if 'min_off_hours' not in settings:
             if not self.node:
-                return _('Missing "{}"!').format('min_off_hours')
+                settings_error['min_off_hours'] = [_('This field is required!')]
         else:
             min_off_hours = settings['min_off_hours']
             if not isinstance(min_off_hours, int):
-                return _('Invalid type for "{}"!').format('min_off_hours')
-            if min_off_hours < 0 or min_off_hours > 23 - on_hours:
-                return _('Invalid value for "{}"!').format('min_off_hours')
+                settings_error['min_off_hours'] = [_('Invalid type!')]
+            elif min_off_hours < 0:
+                settings_error['min_off_hours'] = [_('Cannot be negative!')]
+            elif min_off_hours > 23 - min(23, on_hours):
+                settings_error['min_off_hours'] = [_('Must be smaller than {}!'.format(24 - min(23, on_hours)))]
 
-        return None
+        return settings_error
 
 
 class TapoP100(Logic):
+
+    def get_settings_fields(self):
+        return {
+            'ip': {
+                'type': 'string',
+                'label': gettext_lazy('IP address'),
+            },
+            'username': {
+                'type': 'string',
+                'label': gettext_lazy('Username (e-mail)'),
+            },
+            'password': {
+                'type': 'password',
+                'label': gettext_lazy('Password'),
+            },
+        }
 
     def get_input_keys(self):
         return {'power'}
@@ -162,32 +202,34 @@ class TapoP100(Logic):
         else:
             p100.turnOff()
 
-    def get_settings_error(self, settings, instance=None):
+    def get_settings_errors(self, settings, instance=None):
+        settings_error = {}
+
         ip = settings.get('ip')
 
         if not ip:
             if not self.node:
-                return _('Missing "{}"!').format('ip')
+                settings_error['ip'] = [_('This field is required!')]
         else:
             if not isinstance(ip, str):
-                return _('Invalid type for "{}"!').format('ip')
-            if not IP_VALIDATION_RE.match(ip):
-                return _('Invalid value for "{}"!').format('ip')
+                settings_error['ip'] = [_('Invalid type!')]
+            elif not IP_VALIDATION_RE.match(ip):
+                settings_error['ip'] = [_('Not a valid IP address!')]
 
         username = settings.get('username')
         if not username:
             if not self.node:
-                return _('Missing "{}"!').format('username')
+                settings_error['username'] = [_('This field is required!')]
         else:
             if not isinstance(username, str):
-                return _('Invalid type for "{}"!').format('username')
+                settings_error['username'] = [_('Invalid type!')]
 
         password = settings.get('password')
         if not password:
             if not self.node:
-                return _('Missing "{}"!').format('password')
+                settings_error['password'] = [_('This field is required!')]
         else:
             if not isinstance(password, str):
-                return _('Invalid type for "{}"!').format('password')
+                settings_error['password'] = [_('Invalid type!')]
 
-        return None
+        return settings_error

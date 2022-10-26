@@ -4,6 +4,152 @@ UI.nodes_from_server = {};
 UI.connections_from_server = {};
 UI.nodes = {};
 UI.connections = {};
+UI.node_details_modal = null;
+
+function stripTags(str)
+{
+    return ('' + str).replace(/<\/?[^>]+(>|$)/g, '');
+}
+
+function setNodeDetailsModelEnabled(settings_fields, enabled)
+{
+    $('#node_details_input_name').prop('disabled', !enabled);
+    for (var [key, field] of Object.entries(settings_fields)) {
+        $('#node_details_input_settings_' + key).prop('disabled', !enabled);
+    }
+    $('#node_details_button_cancel').prop('disabled', !enabled);
+    $('#node_details_button_save').prop('disabled', !enabled);
+}
+
+function constructAndShowNodeDetailsModal(node_id)
+{
+    // Remove possible old modal
+    if (UI.node_details_modal) {
+        UI.node_details_modal.remove();
+    }
+
+    var node = UI.nodes[node_id];
+
+    const settings_fields = UI.logics[node.logic_class];
+
+    // Construct inputs for settings
+    settings_inputs = '';
+    for (var [key, field] of Object.entries(settings_fields)) {
+        settings_inputs += '<div class="form-group">';
+        settings_inputs += '<label for="node_details_input_settings_' + key + '" class="col-form-label">' + field['label'] + '</label>';
+        if (field['type'] == 'string') {
+            settings_inputs += '<input type="text" class="form-control" id="node_details_input_settings_' + key + '" value="' + stripTags(node['settings'][key]) + '">';
+        } else if (field['type'] == 'password') {
+            settings_inputs += '<input type="password" class="form-control" id="node_details_input_settings_' + key + '" value="' + stripTags(node['settings'][key]) + '">';
+        } else if (field['type'] == 'integer') {
+            var min_limit = '';
+            if (field['min'] != null) {
+                min_limit = ' min="' + field['min'] + '"'
+            }
+            var max_limit = '';
+            if (field['max'] != null) {
+                max_limit = ' max="' + field['max'] + '"'
+            }
+            settings_inputs += '<input id="node_details_input_settings_' + key + '" type="number" class="form-control" value="' + stripTags(node['settings'][key]) + '"' + min_limit + max_limit + '>';
+        }
+        settings_inputs += '</div>';
+    }
+
+    // Create new modal
+    $('#main').append($(
+        '<div class="modal fade" tabindex="-1" id="node_details_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
+            '<div class="modal-dialog">' +
+                '<div class="modal-content">' +
+                    '<div class="modal-header">' +
+                        '<h5 class="modal-title">Edit node</h5>' +
+                    '</div>' +
+                    '<div class="modal-body">' +
+                        '<form id="node_details_form">' +
+                            '<div class="form-group">' +
+                                '<label for="node_details_input_name" class="col-form-label">Name:</label>' +
+                                '<input id="node_details_input_name" type="text" class="form-control" value="' + stripTags(node['name']) + '">' +
+                            '</div>' +
+                            settings_inputs +
+                        '</form>' +
+                    '</div>' +
+                    '<div class="modal-footer">' +
+                        '<button id="node_details_button_cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+                        '<button id="node_details_button_save" type="button" class="btn btn-primary">Save</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>'
+    ));
+
+    $('#node_details_button_save').on('click', function() {
+        var form = document.getElementById('node_details_form');
+        // Convert form inputs to JSON data for ajax request
+        var params = {};
+        params['name'] = $('#node_details_input_name').val();
+        params['settings'] = {};
+        for (var [key, field] of Object.entries(settings_fields)) {
+            var value = $('#node_details_input_settings_' + key).val();
+            if (field['type'] == 'integer') {
+                value = Number(value);
+            }
+            params['settings'][key] = value;
+        }
+
+        // Disable form, so user cannot do anything while waiting
+        setNodeDetailsModelEnabled(settings_fields, false);
+
+        // Clear all error messages
+        $('#node_details_modal .invalid-feedback').each(function() {
+            $(this).remove();
+        });
+        $('#node_details_modal input').each(function() {
+            $(this).removeClass('is-invalid');
+        });
+
+        // Use Ajax to update on server
+        $.ajax({
+            url: '/api/v1/nodes/' + node_id + '/',
+            method: 'PATCH',
+            headers: {'X-CSRFToken': window.csrf_token},
+            data: JSON.stringify(params),
+            dataType: 'json', contentType: 'application/json; charset=utf-8',
+        }).then(
+            function(data, text_status, request) {
+                setNodeDetailsModelEnabled(settings_fields, true);
+                var bootstrap_modal = bootstrap.Modal.getInstance(document.getElementById('node_details_modal'))
+                bootstrap_modal.hide();
+                // Also update to local memory
+                UI.nodes[node_id]['name'] = params['name'];
+                UI.nodes[node_id]['settings'] = params['settings'];
+                UI.nodes_from_server[node_id]['name'] = params['name'];
+                UI.nodes_from_server[node_id]['settings'] = params['settings'];
+
+                reconstructNodesAndConnectionsToUi();
+            },
+            function(request, text_status, error_thrown) {
+                setNodeDetailsModelEnabled(settings_fields, true);
+                // Add error messages to fields
+                if (request.responseJSON['name']) {
+                    $('#node_details_input_name').addClass('is-invalid')
+                    $('#node_details_input_name').after($('<div class="invalid-feedback">' + request.responseJSON['name'][0] + '</div>'));
+                }
+                if (request.responseJSON['settings']) {
+                    for (var [key, field] of Object.entries(settings_fields)) {
+                        if (request.responseJSON['settings'][key]) {
+                            $('#node_details_input_settings_' + key).addClass('is-invalid')
+                            $('#node_details_input_settings_' + key).after($('<div class="invalid-feedback">' + request.responseJSON['settings'][key][0] + '</div>'));
+                        }
+                    }
+                }
+            },
+        );
+
+    });
+
+    UI.node_details_modal = document.getElementById('node_details_modal');
+    var bootstrap_modal = new bootstrap.Modal(UI.node_details_modal, {});
+    bootstrap_modal.show();
+}
 
 function makeSvgElement(tag, attrs)
 {
@@ -19,6 +165,9 @@ function startMovingNode(node_id, cursor_x, cursor_y)
     UI.moving_node_id = node_id;
     UI.moving_node_offset_x = cursor_x - UI.nodes[node_id].pos_x;
     UI.moving_node_offset_y = cursor_y - UI.nodes[node_id].pos_y;
+    UI.moving_node_original_cursor_x = cursor_x;
+    UI.moving_node_original_cursor_y = cursor_y;
+    UI.moving_node_started = false;
 }
 
 function startMovingConnectionSource(node_id, key, cursor_x, cursor_y)
@@ -62,9 +211,19 @@ function startMovingConnectionDestination(node_id, key, cursor_x, cursor_y)
 function handleMouseMove(event)
 {
     if (UI.moving_node_id) {
-        UI.nodes[UI.moving_node_id].pos_x = event.originalEvent.x - UI.moving_node_offset_x;
-        UI.nodes[UI.moving_node_id].pos_y = event.originalEvent.y - UI.moving_node_offset_y;
-        reconstructNodesAndConnectionsToUi();
+        if (!UI.moving_node_started) {
+            const diff_x = event.originalEvent.x - UI.moving_node_original_cursor_x;
+            const diff_y = event.originalEvent.y - UI.moving_node_original_cursor_y;
+            const distance = Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+            if (distance > 5) {
+                UI.moving_node_started = true;
+            }
+        }
+        if (UI.moving_node_started) {
+            UI.nodes[UI.moving_node_id].pos_x = event.originalEvent.x - UI.moving_node_offset_x;
+            UI.nodes[UI.moving_node_id].pos_y = event.originalEvent.y - UI.moving_node_offset_y;
+            reconstructNodesAndConnectionsToUi();
+        }
     } else if (UI.moving_connection_id) {
         UI.moving_connection_pos = [event.originalEvent.x, event.originalEvent.y];
         reconstructNodesAndConnectionsToUi();
@@ -78,7 +237,7 @@ function handleMouseUp(event)
 {
     if (event.originalEvent.button == 0) {
         // Moving node
-        if (UI.moving_node_id) {
+        if (UI.moving_node_id && UI.moving_node_started) {
             // Update position to server
             var new_pos_x = event.originalEvent.x - UI.moving_node_offset_x;
             var new_pos_y = event.originalEvent.y - UI.moving_node_offset_y;
@@ -86,12 +245,18 @@ function handleMouseUp(event)
                 url: '/api/v1/nodes/' + UI.moving_node_id + '/',
                 method: 'PATCH',
                 headers: {'X-CSRFToken': window.csrf_token},
-                data: {
+                data: JSON.stringify({
                     pos_x: new_pos_x,
                     pos_y: new_pos_y,
-                },
+                }),
+                dataType: 'json', contentType: 'application/json; charset=utf-8',
             });
             // Mark moving stopped
+            UI.moving_node_id = null;
+        }
+        // Clicking node
+        else if (UI.moving_node_id && !UI.moving_node_started) {
+            constructAndShowNodeDetailsModal(UI.moving_node_id);
             UI.moving_node_id = null;
         }
         // Moving connection
@@ -148,7 +313,8 @@ function handleMouseUp(event)
                     url: '/api/v1/connections/' + UI.moving_connection_id + '/',
                     method: 'PATCH',
                     headers: {'X-CSRFToken': window.csrf_token},
-                    data: data,
+                    data: JSON.stringify(data),
+                    dataType: 'json', contentType: 'application/json; charset=utf-8',
                 });
             }
             // If no node was found, then remove the connection
@@ -195,7 +361,8 @@ function handleMouseUp(event)
                     url: '/api/v1/connections/',
                     method: 'POST',
                     headers: {'X-CSRFToken': window.csrf_token},
-                    data: data,
+                    data: JSON.stringify(data),
+                    dataType: 'json', contentType: 'application/json; charset=utf-8',
                 }).then(
                     function(connection_data, text_status, request) {
                         UI.connections[connection_data.id] = connection_data;
@@ -248,7 +415,8 @@ function handleMouseUp(event)
                     url: '/api/v1/connections/',
                     method: 'POST',
                     headers: {'X-CSRFToken': window.csrf_token},
-                    data: data,
+                    data: JSON.stringify(data),
+                    dataType: 'json', contentType: 'application/json; charset=utf-8',
                 }).then(
                     function(connection_data, text_status, request) {
                         UI.connections[connection_data.id] = connection_data;
@@ -482,7 +650,7 @@ function reconstructNodesAndConnectionsToUi()
             y: 16,
             class: 'node_name',
             'text-anchor': 'middle',
-        })).textContent = node.name;
+        })).textContent = stripTags(node.name);
         // Inputs
         for (var input_i = 0; input_i < node.inputs.length; ++ input_i) {
             const input_key = node.inputs[input_i];
@@ -570,17 +738,26 @@ $(window).on('load', function() {
 
     constructUi();
 
-    // Do the initial fetching of node data
-    fetchDataAndUpdateUi().then(
-        function() {
-            setInterval(function() {
-                fetchDataAndUpdateUi().then();
-            }, 5000);
+    // Fetch static data
+    $.ajax({ url: '/api/v1/logics/' }).then(
+        function(logics_data, text_status, request) {
+            UI.logics = logics_data;
+            // Now start fetching nodes data
+            fetchDataAndUpdateUi().then(
+                function() {
+                    setInterval(function() {
+                        fetchDataAndUpdateUi().then();
+                    }, 5000);
+                },
+                function() {
+                    setInterval(function() {
+                        fetchDataAndUpdateUi().then();
+                    }, 5000);
+                },
+            );
         },
-        function() {
-            setInterval(function() {
-                fetchDataAndUpdateUi().then();
-            }, 5000);
+        function(request, text_status, error_thrown) {
+            alert('Fetching initial data failed!');
         },
     );
 });

@@ -25,6 +25,7 @@ class Command(BaseCommand):
                 # Store new prices to cache
                 prices.store_to_cache(new_prices)
 
+# TODO: If connection is removed, let power go down!
         # Let connections flow through the network.
         # A simple cache is used to detect changes in input values. The cache is not persisent,
         # because it is better to be sure that at least some recalculation happens on every run.

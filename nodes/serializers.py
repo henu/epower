@@ -48,7 +48,7 @@ class NodeSerializer(serializers.ModelSerializer):
 
         # Validate settings
         node_settings = validated_data.get('settings')
-        node_settings_error = logic.get_settings_error(node_settings)
+        node_settings_error = logic.get_settings_errors(node_settings)
         if node_settings_error:
             raise serializers.ValidationError({'settings': node_settings_error})
 
@@ -64,7 +64,7 @@ class NodeSerializer(serializers.ModelSerializer):
         # Validate settings
         node_settings = validated_data.get('settings')
         if node_settings:
-            node_settings_error = logic.get_settings_error(node_settings)
+            node_settings_error = logic.get_settings_errors(node_settings)
             if node_settings_error:
                 raise serializers.ValidationError({'settings': node_settings_error})
 
