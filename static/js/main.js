@@ -527,7 +527,7 @@ function constructUi()
     var svg = document.getElementById('main').appendChild(makeSvgElement('svg', {
         id: 'nodes_svg',
         width: '100%',
-        height: '640',
+        height: '100%',
     }));
     svg.appendChild(makeSvgElement('style', {})).append(
         '.node_name {\n' +
