@@ -23,7 +23,11 @@ class LogicsListView(views.APIView):
         logics = {}
 
         for logic_class in settings.NODE_LOGIC_CLASSES:
-            cls = utils.import_dot_path(logic_class)
-            logics[logic_class] = cls(None).get_settings_fields()
+            logic = utils.import_dot_path(logic_class)(None)
+            logics[logic_class] = {
+                'name': logic.get_name(),
+                'description': logic.get_description(),
+                'settings_fields': logic.get_settings_fields(),
+            }
 
         return response.Response(logics)

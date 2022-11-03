@@ -30,7 +30,7 @@ function constructAndShowNodeDetailsModal(node_id)
 
     var node = UI.nodes[node_id];
 
-    const settings_fields = UI.logics[node.logic_class];
+    const settings_fields = UI.logics[node.logic_class].settings_fields;
 
     // Construct inputs for settings
     settings_inputs = '';

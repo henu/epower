@@ -16,6 +16,12 @@ class Logic:
     def __init__(self, node):
         self.node = node
 
+    def get_name(self):
+        raise NotImplementedError()
+
+    def get_description(self):
+        raise NotImplementedError()
+
     def get_settings_fields(self):
         return {}
 
@@ -45,6 +51,12 @@ class SimpleCheapestHours(Logic):
 
     DEFAULT_ON_HOURS = 4
     DEFAULT_MIN_OFF_HOURS = 12
+
+    def get_name(self):
+        return _('Simple cheapest hours')
+
+    def get_description(self):
+        return _('Emits signal during the cheapest hours of the day.')
 
     def get_settings_fields(self):
         return {
@@ -164,6 +176,12 @@ class SimpleCheapestHours(Logic):
 
 
 class TapoP100(Logic):
+
+    def get_name(self):
+        return _('Tapo P100')
+
+    def get_description(self):
+        return _('Controls Tapo smart plugs')
 
     def get_settings_fields(self):
         return {
