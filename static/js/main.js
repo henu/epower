@@ -4,7 +4,6 @@ UI.nodes_from_server = {};
 UI.connections_from_server = {};
 UI.nodes = {};
 UI.connections = {};
-UI.node_details_modal = null;
 
 function stripTags(str)
 {
@@ -13,34 +12,34 @@ function stripTags(str)
 
 function setNodeDetailsModelEnabled(settings_fields, enabled)
 {
-    $('#node_details_input_name').prop('disabled', !enabled);
+    $('#node_edit_input_name').prop('disabled', !enabled);
     for (var [key, field] of Object.entries(settings_fields)) {
-        $('#node_details_input_settings_' + key).prop('disabled', !enabled);
+        $('#node_edit_input_settings_' + key).prop('disabled', !enabled);
     }
-    $('#node_details_button_cancel').prop('disabled', !enabled);
-    $('#node_details_button_save').prop('disabled', !enabled);
+    $('#node_edit_button_cancel').prop('disabled', !enabled);
+    $('#node_edit_button_proceed').prop('disabled', !enabled);
 }
 
-function constructAndShowNodeDetailsModal(node_id)
+function generateNodeDetailsFormHtml(logic_class, node)
 {
-    // Remove possible old modal
-    if (UI.node_details_modal) {
-        UI.node_details_modal.remove();
+    const settings_fields = UI.logics[logic_class].settings_fields;
+
+    if (node) {
+        var node_name = node['name'];
+        var node_settings = node['settings'];
+    } else {
+        var node_name = '';
+        var node_settings = {};
     }
 
-    var node = UI.nodes[node_id];
-
-    const settings_fields = UI.logics[node.logic_class].settings_fields;
-
-    // Construct inputs for settings
-    settings_inputs = '';
+    var settings_inputs = '';
     for (var [key, field] of Object.entries(settings_fields)) {
         settings_inputs += '<div class="form-group">';
-        settings_inputs += '<label for="node_details_input_settings_' + key + '" class="col-form-label">' + field['label'] + '</label>';
+        settings_inputs += '<label for="node_edit_input_settings_' + key + '" class="col-form-label">' + field['label'] + '</label>';
         if (field['type'] == 'string') {
-            settings_inputs += '<input type="text" class="form-control" id="node_details_input_settings_' + key + '" value="' + stripTags(node['settings'][key]) + '">';
+            settings_inputs += '<input type="text" class="form-control" id="node_edit_input_settings_' + key + '" value="' + stripTags(node_settings[key] ?? '') + '">';
         } else if (field['type'] == 'password') {
-            settings_inputs += '<input type="password" class="form-control" id="node_details_input_settings_' + key + '" value="' + stripTags(node['settings'][key]) + '">';
+            settings_inputs += '<input type="password" class="form-control" id="node_edit_input_settings_' + key + '" value="' + stripTags(node_settings[key] ?? '') + '">';
         } else if (field['type'] == 'integer') {
             var min_limit = '';
             if (field['min'] != null) {
@@ -50,105 +49,208 @@ function constructAndShowNodeDetailsModal(node_id)
             if (field['max'] != null) {
                 max_limit = ' max="' + field['max'] + '"'
             }
-            settings_inputs += '<input id="node_details_input_settings_' + key + '" type="number" class="form-control" value="' + stripTags(node['settings'][key]) + '"' + min_limit + max_limit + '>';
+            settings_inputs += '<input id="node_edit_input_settings_' + key + '" type="number" class="form-control" value="' + stripTags(node_settings[key] ?? field['min'] ?? '') + '"' + min_limit + max_limit + '>';
         }
         settings_inputs += '</div>';
     }
 
+    return '' +
+        '<div class="form-group">' +
+            '<label for="node_edit_input_name" class="col-form-label">Name:</label>' +
+            '<input id="node_edit_input_name" type="text" class="form-control" value="' + stripTags(node_name) + '">' +
+        '</div>' +
+        settings_inputs;
+}
+
+function submitNodeDetailsForm(logic_class, node_id)
+{
+    const settings_fields = UI.logics[logic_class].settings_fields;
+
+    // Convert form inputs to JSON data for ajax request
+    var params = {};
+    params['name'] = $('#node_edit_input_name').val();
+    params['settings'] = {};
+    for (var [key, field] of Object.entries(settings_fields)) {
+        var value = $('#node_edit_input_settings_' + key).val();
+        if (field['type'] == 'integer') {
+            value = Number(value);
+        }
+        params['settings'][key] = value;
+    }
+    if (!node_id) {
+        params['logic_class'] = logic_class;
+        params['pos_x'] = 50;
+        params['pos_y'] = 50;
+    }
+
+    // Disable form, so user cannot do anything while waiting
+    setNodeDetailsModelEnabled(settings_fields, false);
+
+    // Clear all error messages
+    $('#node_edit_modal .invalid-feedback').each(function() {
+        $(this).remove();
+    });
+    $('#node_edit_modal input').each(function() {
+        $(this).removeClass('is-invalid');
+    });
+
+    // Use Ajax to update on server
+    var url;
+    var method;
+    if (node_id) {
+        url = '/api/v1/nodes/' + node_id + '/';
+        method = 'PATCH';
+    } else {
+        url = '/api/v1/nodes/';
+        method = 'POST';
+    }
+    $.ajax({
+        url: url,
+        method: method,
+        headers: {'X-CSRFToken': window.csrf_token},
+        data: JSON.stringify(params),
+        dataType: 'json', contentType: 'application/json; charset=utf-8',
+    }).then(
+        function(data, text_status, request) {
+            bootstrap.Modal.getInstance(document.getElementById('node_edit_modal')).hide();
+            // Also update to local memory
+            if (node_id) {
+                UI.nodes[node_id]['name'] = params['name'];
+                UI.nodes[node_id]['settings'] = params['settings'];
+                UI.nodes_from_server[node_id]['name'] = params['name'];
+                UI.nodes_from_server[node_id]['settings'] = params['settings'];
+            } else {
+                node_id = data['id'];
+                UI.nodes[node_id] = data;
+                UI.nodes_from_server[node_id] = data;
+            }
+            reconstructNodesAndConnectionsToUi();
+        },
+        function(request, text_status, error_thrown) {
+            setNodeDetailsModelEnabled(settings_fields, true);
+            // Add error messages to fields
+            if (request.responseJSON['name']) {
+                $('#node_edit_input_name').addClass('is-invalid')
+                $('#node_edit_input_name').after($('<div class="invalid-feedback">' + request.responseJSON['name'][0] + '</div>'));
+            }
+            if (request.responseJSON['settings']) {
+                for (var [key, field] of Object.entries(settings_fields)) {
+                    if (request.responseJSON['settings'][key]) {
+                        $('#node_edit_input_settings_' + key).addClass('is-invalid')
+                        $('#node_edit_input_settings_' + key).after($('<div class="invalid-feedback">' + request.responseJSON['settings'][key][0] + '</div>'));
+                    }
+                }
+            }
+        },
+    );
+}
+
+function constructAndShowNodeDetailsModal(node_id)
+{
+    // Remove possible old modal
+    $('#node_edit_modal').remove();
+
+    var node = UI.nodes[node_id];
+
+    const settings_fields = UI.logics[node.logic_class].settings_fields;
+
     // Create new modal
     $('#main').append($(
-        '<div class="modal fade" tabindex="-1" id="node_details_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
+        '<div class="modal fade" tabindex="-1" id="node_edit_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
             '<div class="modal-dialog">' +
                 '<div class="modal-content">' +
                     '<div class="modal-header">' +
                         '<h5 class="modal-title">Edit node</h5>' +
                     '</div>' +
                     '<div class="modal-body">' +
-                        '<form id="node_details_form">' +
-                            '<div class="form-group">' +
-                                '<label for="node_details_input_name" class="col-form-label">Name:</label>' +
-                                '<input id="node_details_input_name" type="text" class="form-control" value="' + stripTags(node['name']) + '">' +
-                            '</div>' +
-                            settings_inputs +
-                        '</form>' +
+                        generateNodeDetailsFormHtml(node.logic_class, node) +
                     '</div>' +
                     '<div class="modal-footer">' +
-                        '<button id="node_details_button_cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
-                        '<button id="node_details_button_save" type="button" class="btn btn-primary">Save</button>' +
+                        '<button id="node_edit_button_cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+                        '<button id="node_edit_button_proceed" type="button" class="btn btn-primary">Save</button>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
         '</div>'
     ));
 
-    $('#node_details_button_save').on('click', function() {
-        var form = document.getElementById('node_details_form');
-        // Convert form inputs to JSON data for ajax request
-        var params = {};
-        params['name'] = $('#node_details_input_name').val();
-        params['settings'] = {};
-        for (var [key, field] of Object.entries(settings_fields)) {
-            var value = $('#node_details_input_settings_' + key).val();
-            if (field['type'] == 'integer') {
-                value = Number(value);
-            }
-            params['settings'][key] = value;
-        }
-
-        // Disable form, so user cannot do anything while waiting
-        setNodeDetailsModelEnabled(settings_fields, false);
-
-        // Clear all error messages
-        $('#node_details_modal .invalid-feedback').each(function() {
-            $(this).remove();
-        });
-        $('#node_details_modal input').each(function() {
-            $(this).removeClass('is-invalid');
-        });
-
-        // Use Ajax to update on server
-        $.ajax({
-            url: '/api/v1/nodes/' + node_id + '/',
-            method: 'PATCH',
-            headers: {'X-CSRFToken': window.csrf_token},
-            data: JSON.stringify(params),
-            dataType: 'json', contentType: 'application/json; charset=utf-8',
-        }).then(
-            function(data, text_status, request) {
-                setNodeDetailsModelEnabled(settings_fields, true);
-                var bootstrap_modal = bootstrap.Modal.getInstance(document.getElementById('node_details_modal'))
-                bootstrap_modal.hide();
-                // Also update to local memory
-                UI.nodes[node_id]['name'] = params['name'];
-                UI.nodes[node_id]['settings'] = params['settings'];
-                UI.nodes_from_server[node_id]['name'] = params['name'];
-                UI.nodes_from_server[node_id]['settings'] = params['settings'];
-
-                reconstructNodesAndConnectionsToUi();
-            },
-            function(request, text_status, error_thrown) {
-                setNodeDetailsModelEnabled(settings_fields, true);
-                // Add error messages to fields
-                if (request.responseJSON['name']) {
-                    $('#node_details_input_name').addClass('is-invalid')
-                    $('#node_details_input_name').after($('<div class="invalid-feedback">' + request.responseJSON['name'][0] + '</div>'));
-                }
-                if (request.responseJSON['settings']) {
-                    for (var [key, field] of Object.entries(settings_fields)) {
-                        if (request.responseJSON['settings'][key]) {
-                            $('#node_details_input_settings_' + key).addClass('is-invalid')
-                            $('#node_details_input_settings_' + key).after($('<div class="invalid-feedback">' + request.responseJSON['settings'][key][0] + '</div>'));
-                        }
-                    }
-                }
-            },
-        );
-
+    $('#node_edit_button_proceed').on('click', function() {
+        submitNodeDetailsForm(node.logic_class, node_id);
     });
 
-    UI.node_details_modal = document.getElementById('node_details_modal');
-    var bootstrap_modal = new bootstrap.Modal(UI.node_details_modal, {});
+    var modal = document.getElementById('node_edit_modal');
+    var bootstrap_modal = new bootstrap.Modal(modal, {});
     bootstrap_modal.show();
+}
+
+function createNodeCreationModal()
+{
+    // Remove possible old modal
+    $('#node_edit_modal').remove();
+
+    var logic_options = '';
+    for (var [key, field] of Object.entries(UI.logics)) {
+        var logic = UI.logics[key];
+        logic_options += '<option value="' + key + '">' + logic.name + '</option>';
+    }
+
+    // Create new modal
+    $('#main').append($(
+        '<div class="modal fade" tabindex="-1" id="node_edit_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
+            '<div class="modal-dialog">' +
+                '<div class="modal-content">' +
+                    '<div class="modal-header">' +
+                        '<h5 class="modal-title">Create node</h5>' +
+                    '</div>' +
+                    '<div id="node_edit_modal_content" class="modal-body">' +
+                        '<label for="logic_select" class="form-label">Type</label>' +
+                        '<select id="logic_select" class="form-select">' +
+                            '<option value="" selected>-</option>' +
+                            logic_options +
+                        '</select>' +
+                        '<div id="logic_description" class="form-text"></div>' +
+                    '</div>' +
+                    '<div class="modal-footer">' +
+                        '<button id="node_edit_button_cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+                        '<button id="node_edit_button_proceed" type="button" class="btn btn-primary" disabled>Next</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>'
+    ));
+    var modal = document.getElementById('node_edit_modal');
+    var bootstrap_modal = new bootstrap.Modal(modal, {});
+    bootstrap_modal.show();
+
+    // Select changing logic
+    $('#logic_select').on('change', function() {
+        const logic_class = $('#logic_select').val();
+        if (logic_class) {
+            $('#logic_description').text(UI.logics[logic_class].description);
+            $('#node_edit_button_proceed').prop('disabled', false);
+        } else {
+            $('#logic_description').text('');
+            $('#node_edit_button_proceed').prop('disabled', true);
+        }
+    });
+
+    // Next button logic
+    $('#node_edit_button_proceed').on('click', function() {
+        const logic_class = $('#logic_select').val();
+
+        // Remove old content
+        $('#node_edit_button_proceed').remove();
+        $('#node_edit_modal_content').empty();
+
+        // Create new form
+        $('#node_edit_modal_content').append($(generateNodeDetailsFormHtml(logic_class, null)));
+
+        // Add save button
+        $('#node_edit_button_cancel').after($('<button id="node_edit_button_proceed" type="button" class="btn btn-primary">Save</button>'));
+        $('#node_edit_button_proceed').on('click', function() {
+            submitNodeDetailsForm(logic_class, null);
+        });
+    });
 }
 
 function makeSvgElement(tag, attrs)
@@ -760,4 +862,6 @@ $(window).on('load', function() {
             alert('Fetching initial data failed!');
         },
     );
+
+    $('#node_creation_button').on('click', createNodeCreationModal);
 });
