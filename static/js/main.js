@@ -156,11 +156,11 @@ function constructAndShowNodeDetailsModal(node_id)
 
     // Create new modal
     $('#main').append($(
-        '<div class="modal fade" tabindex="-1" id="node_edit_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
+        '<div class="modal fade" tabindex="-1" id="node_edit_modal" data-bs-backdrop="static" data-bs-keyboard="true">' +
             '<div class="modal-dialog">' +
                 '<div class="modal-content">' +
                     '<div class="modal-header">' +
-                        '<h5 class="modal-title">Edit node</h5>' +
+                        '<h5 class="modal-title">Edit node "' + node['name'] + '"</h5>' +
                     '</div>' +
                     '<div class="modal-body">' +
                         generateNodeDetailsFormHtml(node.logic_class, node) +
@@ -185,7 +185,7 @@ function constructAndShowNodeDetailsModal(node_id)
         $('#node_confirm_remove_modal').remove();
         // Create new modal
         $('#main').append($(
-            '<div class="modal fade" tabindex="-1" id="node_confirm_remove_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
+            '<div class="modal fade" tabindex="-1" id="node_confirm_remove_modal" data-bs-backdrop="static" data-bs-keyboard="true">' +
                 '<div class="modal-dialog">' +
                     '<div class="modal-content">' +
                         '<div class="modal-header">' +
@@ -242,7 +242,7 @@ function createNodeCreationModal()
 
     // Create new modal
     $('#main').append($(
-        '<div class="modal fade" tabindex="-1" id="node_edit_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
+        '<div class="modal fade" tabindex="-1" id="node_edit_modal" data-bs-backdrop="static" data-bs-keyboard="true">' +
             '<div class="modal-dialog">' +
                 '<div class="modal-content">' +
                     '<div class="modal-header">' +
