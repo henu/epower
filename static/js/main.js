@@ -167,6 +167,7 @@ function constructAndShowNodeDetailsModal(node_id)
                     '</div>' +
                     '<div class="modal-footer">' +
                         '<button id="node_edit_button_cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+                        '<button id="node_edit_button_remove" type="button" class="btn btn-danger btn-block">Remove</button>' +
                         '<button id="node_edit_button_proceed" type="button" class="btn btn-primary">Save</button>' +
                     '</div>' +
                 '</div>' +
@@ -176,6 +177,51 @@ function constructAndShowNodeDetailsModal(node_id)
 
     $('#node_edit_button_proceed').on('click', function() {
         submitNodeDetailsForm(node.logic_class, node_id);
+    });
+
+    $('#node_edit_button_remove').on('click', function() {
+        bootstrap.Modal.getInstance(document.getElementById('node_edit_modal')).hide();
+        // Remove possible old confirm window
+        $('#node_confirm_remove_modal').remove();
+        // Create new modal
+        $('#main').append($(
+            '<div class="modal fade" tabindex="-1" id="node_confirm_remove_modal" data-bs-backdrop="static" data-bs-keyboard="false">' +
+                '<div class="modal-dialog">' +
+                    '<div class="modal-content">' +
+                        '<div class="modal-header">' +
+                            '<h5 class="modal-title">Remove node "' + node['name'] + '"?</h5>' +
+                        '</div>' +
+                        '<div class="modal-footer">' +
+                            '<button id="node_confirm_remove_button_no" type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>' +
+                            '<button id="node_confirm_remove_button_yes" type="button" class="btn btn-danger btn-block">Yes</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>'
+        ));
+        var modal = document.getElementById('node_confirm_remove_modal');
+        var bootstrap_modal = new bootstrap.Modal(modal, {});
+        bootstrap_modal.show();
+        // Logic for removing
+        $('#node_confirm_remove_button_yes').on('click', function() {
+            $.ajax({
+                url: '/api/v1/nodes/' + node_id + '/',
+                method: 'DELETE',
+                headers: {'X-CSRFToken': window.csrf_token},
+            }).done(function() {
+                bootstrap.Modal.getInstance(document.getElementById('node_confirm_remove_modal')).hide();
+                delete UI.nodes[node_id];
+                delete UI.nodes_from_server[node_id];
+                var new_connections = {};
+                for (var [connection_id, connection] of Object.entries(UI.connections)) {
+                    if (connection.source != node_id && connection.dest != node_id) {
+                        new_connections[connection_id] = connection;
+                    }
+                }
+                UI.connections = new_connections;
+                reconstructNodesAndConnectionsToUi();
+            });
+        });
     });
 
     var modal = document.getElementById('node_edit_modal');
