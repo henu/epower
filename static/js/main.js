@@ -50,6 +50,8 @@ function generateNodeDetailsFormHtml(logic_class, node)
                 max_limit = ' max="' + field['max'] + '"'
             }
             settings_inputs += '<input id="node_edit_input_settings_' + key + '" type="number" class="form-control" value="' + stripTags(node_settings[key] ?? field['min'] ?? '') + '"' + min_limit + max_limit + '>';
+        } else if (field['type'] == 'time') {
+            settings_inputs += '<input id="node_edit_input_settings_' + key + '" type="time" class="form-control" value="' + stripTags(node_settings[key] ?? field['min'] ?? '') + '"' + min_limit + max_limit + '>';
         }
         settings_inputs += '</div>';
     }
