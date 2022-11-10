@@ -10,6 +10,11 @@ function stripTags(str)
     return ('' + str).replace(/<\/?[^>]+(>|$)/g, '');
 }
 
+function escapeDoubleQuotes(str)
+{
+    return ('' + str).replace(/"/g, '&quot;');
+}
+
 function setNodeDetailsModelEnabled(settings_fields, enabled)
 {
     $('#node_edit_input_name').prop('disabled', !enabled);
@@ -37,9 +42,9 @@ function generateNodeDetailsFormHtml(logic_class, node)
         settings_inputs += '<div class="form-group">';
         settings_inputs += '<label for="node_edit_input_settings_' + key + '" class="col-form-label">' + field['label'] + '</label>';
         if (field['type'] == 'string') {
-            settings_inputs += '<input type="text" class="form-control" id="node_edit_input_settings_' + key + '" value="' + stripTags(node_settings[key] ?? '') + '">';
+            settings_inputs += '<input type="text" class="form-control" id="node_edit_input_settings_' + key + '" value="' + escapeDoubleQuotes(stripTags(node_settings[key] ?? '')) + '">';
         } else if (field['type'] == 'password') {
-            settings_inputs += '<input type="password" class="form-control" id="node_edit_input_settings_' + key + '" value="' + stripTags(node_settings[key] ?? '') + '">';
+            settings_inputs += '<input type="password" class="form-control" id="node_edit_input_settings_' + key + '" value="' + escapeDoubleQuotes(stripTags(node_settings[key] ?? '')) + '">';
         } else if (field['type'] == 'integer') {
             var min_limit = '';
             if (field['min'] != null) {
@@ -59,7 +64,7 @@ function generateNodeDetailsFormHtml(logic_class, node)
     return '' +
         '<div class="form-group">' +
             '<label for="node_edit_input_name" class="col-form-label">Name:</label>' +
-            '<input id="node_edit_input_name" type="text" class="form-control" value="' + stripTags(node_name) + '">' +
+            '<input id="node_edit_input_name" type="text" class="form-control" value="' + escapeDoubleQuotes(stripTags(node_name)) + '">' +
         '</div>' +
         settings_inputs;
 }
