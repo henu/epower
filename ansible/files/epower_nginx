@@ -1,0 +1,19 @@
+upstream epower {
+    server          unix:///tmp/epower.sock;
+}
+
+server {
+    listen          80 default_server;
+    listen          [::]:80 default_server;
+
+    charset         utf-8;
+
+    location /static {
+        alias       /home/epower/epower/static_cached;
+    }
+
+    location / {
+        uwsgi_pass  epower;
+        include     uwsgi_params;
+    }
+}

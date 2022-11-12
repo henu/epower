@@ -1,0 +1,175 @@
+---
+- name: Install epower to Raspberry PI with Raspbian
+  hosts:
+  - raspberry
+  become: true
+  vars:
+    django_secret_key: "{{ lookup('password', '/dev/null length=32') }}"
+  tasks:
+
+  - name: Generate MySQL password
+    ansible.builtin.set_fact:
+      mysql_password: "{{ lookup('password', '/dev/null length=15 chars=ascii_letters,digits') }}"
+
+  - name: Install .deb packages
+    ansible.builtin.apt:
+      pkg:
+      - default-mysql-server
+      - gettext
+      - git
+      - libatlas-base-dev
+      - memcached
+      - nginx
+      - python3-virtualenv
+      - uwsgi
+      - uwsgi-plugin-python3
+      state: latest
+
+  - name: Create user for Django app
+    ansible.builtin.user:
+      name: epower
+      shell: /bin/bash
+
+  - name: Clone the project from Github
+    become: true
+    become_user: epower
+    ansible.builtin.git:
+      repo: https://github.com/henu/epower.git
+      dest: /home/epower/epower
+
+  - name: Install Python virtual environment
+    become: true
+    become_user: epower
+    shell: virtualenv -p python3 venv
+    args:
+      chdir: /home/epower/epower
+      creates: venv
+
+  - name: Install Python requirements
+    become: true
+    become_user: epower
+    shell: . venv/bin/activate && pip install -U -r requirements && pip install -U mysqlclient
+    args:
+      chdir: /home/epower/epower
+
+  - name: Create directory for log files
+    ansible.builtin.file:
+      path: /home/epower/epower/logs
+      state: directory
+      owner: epower
+      group: epower
+
+  - name: Create log file for Django errors
+    ansible.builtin.file:
+      path: /home/epower/epower/logs/errors.log
+      state: touch
+      owner: epower
+      group: www-data
+      mode: 0664
+
+  - name: Checking if local_settings.py exists
+    ansible.builtin.stat:
+      path: /home/epower/epower/epower/local_settings.py
+    register: local_settings
+
+  - name: Create local_settings.py file
+    ansible.builtin.template:
+      src: files/local_settings.py
+      dest: /home/epower/epower/epower/local_settings.py
+      owner: epower
+      group: www-data
+      mode: 0640
+    when: not local_settings.stat.exists
+
+  - name: Create MySQL database
+    shell: mysql -u root -p --execute="CREATE DATABASE epower DEFAULT CHARSET = utf8mb4 DEFAULT COLLATE = utf8mb4_unicode_ci;"
+    args:
+      creates: /var/lib/mysql/epower/
+
+  - name: Create MySQL user
+    shell: "mysql -u root -p --execute=\"CREATE USER epower@localhost IDENTIFIED BY '{{ mysql_password }}';\" || true"
+
+  - name: Grant MySQL permissions
+    shell: mysql -u root -p --execute="GRANT ALL PRIVILEGES ON epower.* TO epower@localhost WITH GRANT OPTION;"
+
+  - name: Run migrations
+    become: true
+    become_user: epower
+    shell: . venv/bin/activate && ./manage.py migrate
+    args:
+      chdir: /home/epower/epower
+
+  - name: Compile translations
+    become: true
+    become_user: epower
+    shell: . venv/bin/activate && ./manage.py compilemessages
+    args:
+      chdir: /home/epower/epower
+
+  - name: Create directory for static files
+    ansible.builtin.file:
+      path: /home/epower/epower/static_cached
+      state: directory
+      owner: epower
+      group: epower
+
+  - name: Collect static files
+    become: true
+    become_user: epower
+    shell: . venv/bin/activate && ./manage.py collectstatic --no-input
+    args:
+      chdir: /home/epower/epower
+
+  - name: Create uWSGI params file
+    ansible.builtin.copy:
+      src: files/uwsgi_params
+      dest: /home/epower/epower/uwsgi_params
+      owner: epower
+      group: epower
+
+  - name: Create uWSGI app
+    ansible.builtin.copy:
+      src: files/epower_uwsgi.ini
+      dest: /etc/uwsgi/apps-available/epower.ini
+
+  - name: Enable uWSGI app
+    ansible.builtin.file:
+      src: ../apps-available/epower.ini
+      dest: /etc/uwsgi/apps-enabled/epower.ini
+      state: link
+
+  - name: Restart uWSGI
+    ansible.builtin.service:
+      name: uwsgi
+      state: restarted
+
+  - name: Create Nginx site
+    ansible.builtin.copy:
+      src: files/epower_nginx
+      dest: /etc/nginx/sites-available/epower
+
+  - name: Enable Nginx site
+    ansible.builtin.file:
+      src: ../sites-available/epower
+      dest: /etc/nginx/sites-enabled/epower
+      state: link
+
+  - name: Restart Nginx
+    ansible.builtin.service:
+      name: nginx
+      state: restarted
+
+  - name: Copy cron.bash
+    ansible.builtin.copy:
+      src: files/cron.bash
+      dest: /home/epower/epower/cron.bash
+      owner: epower
+      group: epower
+      mode: 0744
+
+  - name: Configure crontab
+    ansible.builtin.cron:
+      name: Run epower periodic tasks
+      user: epower
+      minute: "*/5"
+      job: ~/epower/cron.bash

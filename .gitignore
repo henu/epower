@@ -2,3 +2,5 @@ __pycache__
 
 /epower/local_settings.py
 /db.sqlite3
+
+/ansible/hosts.ini
