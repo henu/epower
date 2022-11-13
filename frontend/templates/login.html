@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% load i18n %}
+
+{% block custom_styles %}
+
+    html
+    {
+        height: 100%;
+    }
+
+    body
+    {
+        display: flex;
+        height: 100%;
+    }
+
+    main
+    {
+        margin: auto !important;
+    }
+
+    form
+    {
+        max-width: 300px;
+        margin: auto !important;
+    }
+
+{% endblock %}
+
+{% block content %}
+
+    <main class="text-center">
+
+        {% if form.errors %}
+            <div class="alert alert-danger" role="alert">
+                {% trans "Your username and password didn't match. Please try again." %}
+            </div>
+        {% endif %}
+
+        <h2>{% trans 'Please sign in' %}</h2>
+
+        <form method="POST" action="{% url 'login' %}">
+
+            {% csrf_token %}
+
+            <div class="form-floating">
+                <input type="text" class="form-control" id="username_input" name="{{ form.username.name }}" placeholder="{{ form.username.name }}">
+                <label for="username_input">{% trans 'Username' %}</label>
+            </div>
+
+            <div class="form-floating">
+                <input type="password" class="form-control" id="password_input" name="{{ form.password.name }}" placeholder="{{ form.password.name }}">
+                <label for="password_input">{% trans 'Password' %}</label>
+            </div>
+
+            <button class="w-100 btn btn-lg btn-primary" type="submit">{% trans 'Sign in' %}</button>
+
+            <input type="hidden" name="next" value="{{ next }}">
+
+        </form>
+
+    </main>
+
+{% endblock %}
