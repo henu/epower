@@ -1181,7 +1181,8 @@ $(window).on('load', function() {
                     fetchSettings();
                 },
             );
-            // Set up button event
+            // Set up button events
+            $('#settings_button').on('click', constructAndShowSettingsModal);
             $('#node_creation_button').on('click', createNodeCreationModal);
         },
         function() {
