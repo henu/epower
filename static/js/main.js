@@ -4,6 +4,8 @@ UI.nodes_from_server = {};
 UI.connections_from_server = {};
 UI.nodes = {};
 UI.connections = {};
+UI.settings = {};
+UI.static_data = {};
 
 function stripTags(str)
 {
@@ -13,6 +15,96 @@ function stripTags(str)
 function escapeDoubleQuotes(str)
 {
     return ('' + str).replace(/"/g, '&quot;');
+}
+
+function fetchStaticData(urls_and_names)
+{
+    return new Promise(function(resolve, reject) {
+        const url_and_name = urls_and_names[0];
+        urls_and_names = urls_and_names.slice(1);
+        $.ajax({
+            url: url_and_name[0],
+        }).then(
+            function(data, text_status, request) {
+                UI.static_data[url_and_name[1]] = data;
+                if (urls_and_names.length > 0) {
+                    fetchStaticData(urls_and_names).then(resolve, reject);
+                } else {
+                    resolve();
+                }
+            },
+            function(request, text_status, error_thrown) {
+                reject();
+            },
+        );
+    });
+}
+
+function saveVariables(vars)
+{
+    return new Promise(function(resolve, reject) {
+        // Pick one key/variable pair
+        const name = Object.keys(vars)[0];
+        const value = vars[name];
+        delete vars[name];
+        $.ajax({
+            url: '/api/v1/variables/',
+            method: 'POST',
+            headers: {'X-CSRFToken': window.csrf_token},
+            data: JSON.stringify({
+                'name': name,
+                'value': value,
+            }),
+            dataType: 'json',
+            contentType: 'application/json; charset=utf-8',
+        }).then(
+            function(data, text_status, request) {
+                if (Object.keys(vars).length > 0) {
+                    saveVariables(vars).then(
+                        function() {
+                            resolve();
+                        },
+                        function() {
+                            reject();
+                        },
+                    );
+                } else {
+                    resolve();
+                }
+            },
+            function(request, text_status, error_thrown) {
+                // In case the object already exists, try to update it
+                $.ajax({
+                    url: '/api/v1/variables/' + name + '/',
+                    method: 'PATCH',
+                    headers: {'X-CSRFToken': window.csrf_token},
+                    data: JSON.stringify({
+                        'value': value,
+                    }),
+                    dataType: 'json',
+                    contentType: 'application/json; charset=utf-8',
+                }).then(
+                    function(data, text_status, request) {
+                        if (Object.keys(vars).length > 0) {
+                            saveVariables(vars).then(
+                                function() {
+                                    resolve();
+                                },
+                                function() {
+                                    reject();
+                                },
+                            );
+                        } else {
+                            resolve();
+                        }
+                    },
+                    function(request, text_status, error_thrown) {
+                        reject();
+                    },
+                );
+            },
+        );
+    });
 }
 
 function setNodeDetailsModelEnabled(settings_fields, enabled)
@@ -27,7 +119,7 @@ function setNodeDetailsModelEnabled(settings_fields, enabled)
 
 function generateNodeDetailsFormHtml(logic_class, node)
 {
-    const settings_fields = UI.logics[logic_class].settings_fields;
+    const settings_fields = UI.static_data.logics[logic_class].settings_fields;
 
     if (node) {
         var node_name = node['name'];
@@ -71,7 +163,7 @@ function generateNodeDetailsFormHtml(logic_class, node)
 
 function submitNodeDetailsForm(logic_class, node_id)
 {
-    const settings_fields = UI.logics[logic_class].settings_fields;
+    const settings_fields = UI.static_data.logics[logic_class].settings_fields;
 
     // Convert form inputs to JSON data for ajax request
     var params = {};
@@ -116,7 +208,8 @@ function submitNodeDetailsForm(logic_class, node_id)
         method: method,
         headers: {'X-CSRFToken': window.csrf_token},
         data: JSON.stringify(params),
-        dataType: 'json', contentType: 'application/json; charset=utf-8',
+        dataType: 'json',
+        contentType: 'application/json; charset=utf-8',
     }).then(
         function(data, text_status, request) {
             bootstrap.Modal.getInstance(document.getElementById('node_edit_modal')).hide();
@@ -159,7 +252,7 @@ function constructAndShowNodeDetailsModal(node_id)
 
     var node = UI.nodes[node_id];
 
-    const settings_fields = UI.logics[node.logic_class].settings_fields;
+    const settings_fields = UI.static_data.logics[node.logic_class].settings_fields;
 
     // Create new modal
     $('#main').append($(
@@ -242,8 +335,8 @@ function createNodeCreationModal()
     $('#node_edit_modal').remove();
 
     var logic_options = '';
-    for (var [key, field] of Object.entries(UI.logics)) {
-        var logic = UI.logics[key];
+    for (var [key, field] of Object.entries(UI.static_data.logics)) {
+        var logic = UI.static_data.logics[key];
         logic_options += '<option value="' + key + '">' + logic.name + '</option>';
     }
 
@@ -279,7 +372,7 @@ function createNodeCreationModal()
     $('#logic_select').on('change', function() {
         const logic_class = $('#logic_select').val();
         if (logic_class) {
-            $('#logic_description').text(UI.logics[logic_class].description);
+            $('#logic_description').text(UI.static_data.logics[logic_class].description);
             $('#node_edit_button_proceed').prop('disabled', false);
         } else {
             $('#logic_description').text('');
@@ -304,6 +397,109 @@ function createNodeCreationModal()
             submitNodeDetailsForm(logic_class, null);
         });
     });
+}
+
+function constructAndShowSettingsModal()
+{
+    // Remove possible old modal
+    $('#settings_modal').remove();
+
+    var countrycode_options = '';
+    for (var [countrycode, country_data] of Object.entries(UI.static_data.countries)) {
+        countrycode_options += '<option value="' + countrycode + '"';
+        if (UI.settings.countrycode == countrycode) {
+            countrycode_options += ' selected';
+        }
+        countrycode_options += '>' + country_data.name + '</option>';
+    }
+
+    var timezone_options = '';
+    for (var timezone_i = 0; timezone_i < UI.static_data.timezones.length; ++ timezone_i) {
+        var key_and_name = UI.static_data.timezones[timezone_i]
+        timezone_options += '<option value="' + key_and_name[0] + '"';
+        if (UI.settings.timezone == key_and_name[0]) {
+            timezone_options += ' selected';
+        }
+        timezone_options += '>' + key_and_name[1] + '</option>';
+    }
+
+    const keyboard_close_allowed = !!(UI.settings.countrycode && UI.settings.timezone);
+
+    // Create new modal
+    $('#main').append($(
+        '<div class="modal fade" tabindex="-1" id="settings_modal" data-bs-backdrop="static" data-bs-keyboard="' + keyboard_close_allowed + '">' +
+            '<div class="modal-dialog">' +
+                '<div class="modal-content">' +
+                    '<div class="modal-header">' +
+                        '<h5 class="modal-title">Settings</h5>' +
+                    '</div>' +
+                    '<div class="modal-body">' +
+                        '<label for="settings_countrycode_select" class="form-label">Country</label>' +
+                        '<select id="settings_countrycode_select" class="form-select">' +
+                            '<option value="" selected>-</option>' +
+                            countrycode_options +
+                        '</select>' +
+                        '<label for="settings_timezone_select" class="form-label">Timezone</label>' +
+                        '<select id="settings_timezone_select" class="form-select">' +
+                            '<option value="" selected>-</option>' +
+                            timezone_options +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="modal-footer">' +
+                        '<button id="settings_button_cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
+                        '<button id="settings_button_save" type="button" class="btn btn-primary" disabled>Save</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>'
+    ));
+    var modal = document.getElementById('settings_modal');
+    var bootstrap_modal = new bootstrap.Modal(modal, {});
+    bootstrap_modal.show();
+
+    updateSettingsModalInputs();
+
+    // Set up form logic
+    $('#settings_countrycode_select').on('change', function() {
+        updateSettingsModalInputs(false);
+    });
+    $('#settings_timezone_select').on('change', function() {
+        updateSettingsModalInputs(false);
+    });
+
+    $('#settings_button_save').on('click', function() {
+        const countrycode = $('#settings_countrycode_select').val();
+        const timezone = $('#settings_timezone_select').val();
+
+        updateSettingsModalInputs(true);
+
+        saveVariables({
+            'countrycode': countrycode,
+            'timezone': timezone,
+        }).then(
+            function() {
+                UI.settings['countrycode'] = countrycode;
+                UI.settings['timezone'] = timezone;
+                bootstrap.Modal.getInstance(document.getElementById('settings_modal')).hide();
+            },
+            function() {
+                alert('Saving settings failed!');
+                updateSettingsModalInputs(false);
+            },
+        );
+    });
+}
+
+function updateSettingsModalInputs(force_all_disabled)
+{
+    // Check if cancel button should be enabled
+    $('#settings_button_cancel').prop('disabled', force_all_disabled || !UI.settings.countrycode || !UI.settings.timezone);
+
+    // Check if save button should be enabled
+    $('#settings_button_save').prop('disabled', force_all_disabled || !$('#settings_countrycode_select').val() || !$('#settings_timezone_select').val());
+
+    $('#settings_countrycode_select').prop('disabled', force_all_disabled);
+    $('#settings_timezone_select').prop('disabled', force_all_disabled);
 }
 
 function makeSvgElement(tag, attrs)
@@ -404,7 +600,8 @@ function handleMouseUp(event)
                     pos_x: new_pos_x,
                     pos_y: new_pos_y,
                 }),
-                dataType: 'json', contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
+                contentType: 'application/json; charset=utf-8',
             });
             // Mark moving stopped
             UI.moving_node_id = null;
@@ -469,7 +666,8 @@ function handleMouseUp(event)
                     method: 'PATCH',
                     headers: {'X-CSRFToken': window.csrf_token},
                     data: JSON.stringify(data),
-                    dataType: 'json', contentType: 'application/json; charset=utf-8',
+                    dataType: 'json',
+                    contentType: 'application/json; charset=utf-8',
                 });
             }
             // If no node was found, then remove the connection
@@ -517,7 +715,8 @@ function handleMouseUp(event)
                     method: 'POST',
                     headers: {'X-CSRFToken': window.csrf_token},
                     data: JSON.stringify(data),
-                    dataType: 'json', contentType: 'application/json; charset=utf-8',
+                    dataType: 'json',
+                    contentType: 'application/json; charset=utf-8',
                 }).then(
                     function(connection_data, text_status, request) {
                         UI.connections[connection_data.id] = connection_data;
@@ -571,7 +770,8 @@ function handleMouseUp(event)
                     method: 'POST',
                     headers: {'X-CSRFToken': window.csrf_token},
                     data: JSON.stringify(data),
-                    dataType: 'json', contentType: 'application/json; charset=utf-8',
+                    dataType: 'json',
+                    contentType: 'application/json; charset=utf-8',
                 }).then(
                     function(connection_data, text_status, request) {
                         UI.connections[connection_data.id] = connection_data;
@@ -889,32 +1089,103 @@ function fetchDataAndUpdateUi()
     });
 }
 
+function fetchVariables(names)
+{
+    const name = names[0];
+    var names_except_first = names.slice(1);
+
+    return new Promise(function(resolve, reject) {
+        $.ajax({ url: '/api/v1/variables/' + names[0]}).then(
+            function(variable_data, text_status, request) {
+                const value = variable_data['value'];
+                if (names_except_first.length > 0) {
+                    fetchVariables(names_except_first).then(
+                        function(results)
+                        {
+                            results[name] = value;
+                            resolve(results);
+                        },
+                        function()
+                        {
+                            reject();
+                        },
+                    );
+                } else {
+                    var results = {};
+                    results[name] = value;
+                    resolve(results);
+                }
+            },
+            function(request, text_status, error_thrown) {
+                // If variable is not found. This is a minor error. It means we can continue checking others.
+                if (request.status == 404) {
+                    if (names_except_first.length > 0) {
+                        fetchVariables(names_except_first).then(
+                            function(results)
+                            {
+                                resolve(results);
+                            },
+                            function()
+                            {
+                                reject();
+                            },
+                        );
+                    } else {
+                        resolve({});
+                    }
+                } else {
+                    reject();
+                }
+            }
+        )
+    });
+}
+
+function fetchSettings()
+{
+    fetchVariables(['countrycode', 'timezone']).then(
+        function(result) {
+            UI.settings = result;
+            if (!UI.settings['countrycode'] || !UI.settings['timezone']) {
+                constructAndShowSettingsModal();
+            }
+        },
+        function() {
+        },
+    );
+}
+
 $(window).on('load', function() {
 
     constructUi();
 
     // Fetch static data
-    $.ajax({ url: '/api/v1/logics/' }).then(
-        function(logics_data, text_status, request) {
-            UI.logics = logics_data;
+    fetchStaticData([
+        ['/api/v1/logics/', 'logics'],
+        ['/api/v1/countries/', 'countries'],
+        ['/api/v1/timezones/', 'timezones'],
+    ]).then(
+        function() {
             // Now start fetching nodes data
             fetchDataAndUpdateUi().then(
                 function() {
                     setInterval(function() {
                         fetchDataAndUpdateUi().then();
                     }, 5000);
+                    fetchSettings();
                 },
                 function() {
                     setInterval(function() {
                         fetchDataAndUpdateUi().then();
                     }, 5000);
+                    fetchSettings();
                 },
             );
+            // Set up button event
+            $('#node_creation_button').on('click', createNodeCreationModal);
         },
-        function(request, text_status, error_thrown) {
-            alert('Fetching initial data failed!');
+        function() {
+            alert('Fetching static data failed!');
         },
     );
-
-    $('#node_creation_button').on('click', createNodeCreationModal);
 });

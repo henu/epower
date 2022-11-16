@@ -1,8 +1,12 @@
+from babel.dates import get_timezone_location
+import pytz
+
 from django.conf import settings
+from django.utils import translation
 
 from rest_framework import permissions, response, views, viewsets
 
-from . import models, serializers, utils
+from . import constants, models, serializers, utils
 
 
 class NodeViewSet(viewsets.ModelViewSet):
@@ -31,3 +35,25 @@ class LogicsListView(views.APIView):
             }
 
         return response.Response(logics)
+
+
+class CountriesListView(views.APIView):
+
+    def get(self, request):
+        return response.Response(constants.COUNTRIES)
+
+
+class TimezonesListView(views.APIView):
+
+    def get(self, request):
+
+        timezones = []
+
+        for tz in sorted(pytz.common_timezones_set):
+            locale = (translation.get_language() or 'en').split('-')[0]
+            timezones.append([
+                tz,
+                '{} ({})'.format(tz, get_timezone_location(tz, locale=locale))
+            ]);
+
+        return response.Response(timezones)
