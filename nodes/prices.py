@@ -1,15 +1,15 @@
+import dateutil
+import decimal
+import entsoe
 import json
 import pandas
+import xml.dom.minidom
 
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-import dateutil
-import decimal
-import entsoe
-import xml.dom.minidom
-
+from varstorage.models import Variable
 
 def get_from_cache():
     prices = cache.get('prices')
@@ -25,7 +25,7 @@ def store_to_cache(prices):
 
 
 def fetch_prices():
-    # If prices have been fetched recently, then return them
+    # If prices have been fetched recently, then don't return anything
     if cache.get('prices'):
         prices_fetched_at = cache.get('prices_fetched_at')
         if prices_fetched_at:
@@ -33,8 +33,18 @@ def fetch_prices():
             if prices_fetched_at > timezone.now() - timezone.timedelta(hours=1):
                 return None
 
+    # Read settings. If something is missing or invalid, then give up immediately
+    countrycode = Variable.objects.get_value('countrycode')
+    entsoe_api_key = Variable.objects.get_value('entsoe_api_key')
+    if not countrycode or not entsoe_api_key:
+        return None
+    if not isinstance(countrycode, str) or not isinstance(entsoe_api_key, str):
+        return None
+    if len(countrycode) != 2:
+        return None
+
     # Fetch fresh prices
-    client = entsoe.EntsoeRawClient(api_key=settings.ENTSOE_API_KEY)
+    client = entsoe.EntsoeRawClient(api_key=entsoe_api_key)
 
     # Decide time range. Go a little bit to the past and a little
     # more to the future, so we are sure to get all the needed data.
@@ -43,7 +53,7 @@ def fetch_prices():
     end = pandas.Timestamp((now + timezone.timedelta(days=2)).strftime('%Y%m%d'))
 
     # Fetch the data
-    xml_data = client.query_day_ahead_prices(settings.COUNTRYCODE, start, end)
+    xml_data = client.query_day_ahead_prices(countrycode.upper(), start, end)
 
     # Parse XML to dict
     xml_dom = xml.dom.minidom.parseString(xml_data)
