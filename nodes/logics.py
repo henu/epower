@@ -9,6 +9,8 @@ from django.utils.translation import gettext_lazy, gettext as _
 
 from PyP100 import PyP100
 
+from . import utils
+
 
 IP_VALIDATION_RE = re.compile('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$')
 
@@ -285,7 +287,7 @@ class Clock(Logic):
         if not start_time or not end_time:
             return {'power': 0}
         # Check if signal should be emitted
-        local_time = timezone.now().astimezone(pytz.timezone(settings.TIME_ZONE)).strftime('%H:%M')
+        local_time = timezone.now().astimezone(utils.get_configured_timezone()).strftime('%H:%M')
         if start_time < end_time:
             if start_time <= local_time and end_time > local_time:
                 return {'power': 1}
