@@ -434,20 +434,42 @@ function constructAndShowSettingsModal()
                         '<h5 class="modal-title">Settings</h5>' +
                     '</div>' +
                     '<div class="modal-body">' +
-                        '<label for="settings_countrycode_select" class="form-label">Country</label>' +
-                        '<select id="settings_countrycode_select" class="form-select">' +
-                            '<option value="" selected>-</option>' +
-                            countrycode_options +
-                        '</select>' +
-                        '<label for="settings_timezone_select" class="form-label">Timezone</label>' +
-                        '<select id="settings_timezone_select" class="form-select">' +
-                            '<option value="" selected>-</option>' +
-                            timezone_options +
-                        '</select>' +
+
+                        '<ul class="nav nav-tabs">' +
+                            '<li class="nav-item">' +
+                                '<a id="settings_modal_location_tab" class="nav-link active" href="#">Location</a>' +
+                            '</li>' +
+                            '<li class="nav-item">' +
+                                '<a id="settings_modal_prices_tab" class="nav-link" href="#">Prices</a>' +
+                            '</li>' +
+                        '</ul>' +
+
+                        '<div id="settings_modal_location_tab_content">' +
+
+                            '<label for="settings_countrycode_select" class="form-label">Country</label>' +
+                            '<select id="settings_countrycode_select" class="form-select">' +
+                                '<option value="" selected>-</option>' +
+                                countrycode_options +
+                            '</select>' +
+                            '<label for="settings_timezone_select" class="form-label">Timezone</label>' +
+                            '<select id="settings_timezone_select" class="form-select">' +
+                                '<option value="" selected>-</option>' +
+                                timezone_options +
+                            '</select>' +
+
+                        '</div>' +
+
+                        '<div id="settings_modal_prices_tab_content" style="display: none;">' +
+
+                            '<label for="settings_entsoe_api_key_input" class="form-label">Entso-E API key</label>' +
+                            '<input type="text" id="settings_entsoe_api_key_input" class="form-control" value="' + (UI.settings.entsoe_api_key ?? '') + '">' +
+
+                        '</div>' +
+
                     '</div>' +
                     '<div class="modal-footer">' +
                         '<button id="settings_button_cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>' +
-                        '<button id="settings_button_save" type="button" class="btn btn-primary" disabled>Save</button>' +
+                        '<button id="settings_button_save" type="button" class="btn btn-primary">Save</button>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -466,40 +488,83 @@ function constructAndShowSettingsModal()
     $('#settings_timezone_select').on('change', function() {
         updateSettingsModalInputs(false);
     });
-
     $('#settings_button_save').on('click', function() {
         const countrycode = $('#settings_countrycode_select').val();
         const timezone = $('#settings_timezone_select').val();
+        const entsoe_api_key = $('#settings_entsoe_api_key_input').val();
 
-        updateSettingsModalInputs(true);
+        var save_allowed = !!(countrycode && timezone && entsoe_api_key);
 
-        saveVariables({
-            'countrycode': countrycode,
-            'timezone': timezone,
-        }).then(
-            function() {
-                UI.settings['countrycode'] = countrycode;
-                UI.settings['timezone'] = timezone;
-                bootstrap.Modal.getInstance(document.getElementById('settings_modal')).hide();
-            },
-            function() {
-                alert('Saving settings failed!');
-                updateSettingsModalInputs(false);
-            },
-        );
+        // If some of the required information is missing, then switch to that tab
+        if ($('#settings_modal_location_tab').hasClass('active')) {
+            if (!countrycode || !timezone) {
+                // Stay in this tab
+            } else if (!entsoe_api_key) {
+                openSettingsModalTab('prices');
+                save_allowed = false;
+            }
+        } else if ($('#settings_modal_prices_tab').hasClass('active')) {
+            if (!entsoe_api_key) {
+                // Stay in this tab
+            } else if (!countrycode || !timezone) {
+                openSettingsModalTab('location');
+                save_allowed = false;
+            }
+        }
+
+        if (save_allowed) {
+            updateSettingsModalInputs(true);
+            saveVariables({
+                'countrycode': countrycode,
+                'timezone': timezone,
+                'entsoe_api_key': entsoe_api_key,
+            }).then(
+                function() {
+                    UI.settings['countrycode'] = countrycode;
+                    UI.settings['timezone'] = timezone;
+                    UI.settings['entsoe_api_key'] = entsoe_api_key;
+                    bootstrap.Modal.getInstance(document.getElementById('settings_modal')).hide();
+                },
+                function() {
+                    alert('Saving settings failed!');
+                    updateSettingsModalInputs(false);
+                },
+            );
+        }
+    });
+    $('#settings_modal_location_tab').on('click', function() {
+        openSettingsModalTab('location');
+    });
+    $('#settings_modal_prices_tab').on('click', function() {
+        openSettingsModalTab('prices');
     });
 }
 
 function updateSettingsModalInputs(force_all_disabled)
 {
     // Check if cancel button should be enabled
-    $('#settings_button_cancel').prop('disabled', force_all_disabled || !UI.settings.countrycode || !UI.settings.timezone);
+    $('#settings_button_cancel').prop('disabled', force_all_disabled || !UI.settings.countrycode || !UI.settings.timezone || !UI.settings.entsoe_api_key);
 
-    // Check if save button should be enabled
-    $('#settings_button_save').prop('disabled', force_all_disabled || !$('#settings_countrycode_select').val() || !$('#settings_timezone_select').val());
-
+    // Check if all should be forced disabled
+    $('#settings_button_save').prop('disabled', force_all_disabled);
     $('#settings_countrycode_select').prop('disabled', force_all_disabled);
     $('#settings_timezone_select').prop('disabled', force_all_disabled);
+    $('#settings_entsoe_api_key_input').prop('disabled', force_all_disabled);
+}
+
+function openSettingsModalTab(tab)
+{
+    if (tab == 'location') {
+        $('#settings_modal_location_tab_content').show(0);
+        $('#settings_modal_prices_tab_content').hide(0);
+        $('#settings_modal_location_tab').addClass('active');
+        $('#settings_modal_prices_tab').removeClass('active');
+    } else {
+        $('#settings_modal_location_tab_content').hide(0);
+        $('#settings_modal_prices_tab_content').show(0);
+        $('#settings_modal_location_tab').removeClass('active');
+        $('#settings_modal_prices_tab').addClass('active');
+    }
 }
 
 function makeSvgElement(tag, attrs)
@@ -1143,10 +1208,10 @@ function fetchVariables(names)
 
 function fetchSettings()
 {
-    fetchVariables(['countrycode', 'timezone']).then(
+    fetchVariables(['countrycode', 'timezone', 'entsoe_api_key']).then(
         function(result) {
             UI.settings = result;
-            if (!UI.settings['countrycode'] || !UI.settings['timezone']) {
+            if (!UI.settings['countrycode'] || !UI.settings['timezone'] || !UI.settings['entsoe_api_key']) {
                 constructAndShowSettingsModal();
             }
         },
