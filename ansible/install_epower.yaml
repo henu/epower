@@ -120,6 +120,13 @@
     args:
       chdir: /home/epower/epower
 
+  - name: Set up initial user
+    become: true
+    become_user: epower
+    shell: . venv/bin/activate && ./manage.py loaddata fixtures/admin_user.json
+    args:
+      chdir: /home/epower/epower
+
   - name: Create uWSGI params file
     ansible.builtin.copy:
       src: files/uwsgi_params
