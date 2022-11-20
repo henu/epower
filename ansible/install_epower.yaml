@@ -18,6 +18,7 @@
       - gettext
       - git
       - libatlas-base-dev
+      - libmariadb-dev-compat
       - memcached
       - nginx
       - python3-virtualenv
