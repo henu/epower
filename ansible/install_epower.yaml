@@ -21,9 +21,16 @@
       - memcached
       - nginx
       - python3-virtualenv
+      - unattended-upgrades
       - uwsgi
       - uwsgi-plugin-python3
       state: latest
+
+  - name: Enable automatic removing of old deb packages
+    ansible.builtin.lineinfile:
+      path: /etc/apt/apt.conf.d/50unattended-upgrades
+      regexp: '^//Unattended-Upgrade::Remove-Unused-Dependencies "false";$'
+      line: Unattended-Upgrade::Remove-Unused-Dependencies "true";
 
   - name: Create user for Django app
     ansible.builtin.user:
@@ -180,3 +187,16 @@
       user: epower
       minute: "*/5"
       job: ~/epower/cron.bash
+
+  - name: Copy script for checking updates
+    ansible.builtin.copy:
+      src: files/check_updates.bash
+      dest: /root/check_updates.bash
+      mode: 0744
+
+  - name: Schedule checking of updates
+    ansible.builtin.cron:
+      name: Check updates
+      minute: 0
+      hour: "*/3"
+      job: ~/check_updates.bash
