@@ -26,6 +26,7 @@
       - uwsgi
       - uwsgi-plugin-python3
       state: latest
+      update_cache: true
 
   - name: Enable automatic removing of old deb packages
     ansible.builtin.lineinfile:
@@ -157,6 +158,11 @@
     ansible.builtin.service:
       name: uwsgi
       state: restarted
+
+  - name: Disable default Nginx site
+    ansible.builtin.file:
+      path: /etc/nginx/sites-enabled/default
+      state: absent
 
   - name: Create Nginx site
     ansible.builtin.copy:
