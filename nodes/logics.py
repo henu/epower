@@ -16,6 +16,7 @@ from . import utils
 
 
 IP_VALIDATION_RE = re.compile('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$')
+EMAIL_VALIDATION_RE = re.compile('^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$')
 
 
 class Logic:
@@ -248,6 +249,8 @@ class TapoP100(Logic):
         else:
             if not isinstance(username, str):
                 settings_error['username'] = [_('Invalid type!')]
+            elif not EMAIL_VALIDATION_RE.match(username):
+                settings_error['username'] = [_('Not a valid e-mail!')]
 
         password = settings.get('password')
         if not password:
@@ -374,6 +377,8 @@ class MelCloud(Logic):
         else:
             if not isinstance(username, str):
                 settings_error['username'] = [_('Invalid type!')]
+            elif not EMAIL_VALIDATION_RE.match(username):
+                settings_error['username'] = [_('Not a valid e-mail!')]
 
         password = settings.get('password')
         if not password:
