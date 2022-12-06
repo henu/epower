@@ -1,5 +1,6 @@
 Babel==2.11.0
 Django==4.1.1
+django-cache-lock==0.2.5
 djangorestframework==3.14.0
 entsoe-py==0.5.8
 pandas==1.4.4
