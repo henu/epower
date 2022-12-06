@@ -10,6 +10,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
 
+        # Fetch all Nodes to memory. This way, we don't have to fetch them multiple times,
+        # and they can do for example some local catching in them. The Logics inside Nodes
+        # are automatically cached too, so those can do the local caching too.
+        nodes = {node.id: node for node in models.Node.objects.all()}
+
         # Try to fetch new prices
         new_prices = prices.fetch_prices()
 
@@ -19,7 +24,7 @@ class Command(BaseCommand):
             # If prices were changed, then inform all nodes about this. After this, store prices to cache.
             if old_prices != new_prices:
                 # Iterate all nodes through
-                for node in models.Node.objects.all():
+                for node in nodes.values():
                     logic = node.get_logic()
                     logic.handle_updated_prices(new_prices)
                 # Store new prices to cache
@@ -36,7 +41,7 @@ class Command(BaseCommand):
             # Inputs of nodes. These will be filled in the loop below
             new_node_inputs = defaultdict(dict)
             # Now loop all nodes
-            for node in models.Node.objects.all():
+            for node in nodes.values():
                 new_outputs = node.get_logic().get_output_values() or {}
 
                 # Transfer values via Connections
@@ -50,11 +55,11 @@ class Command(BaseCommand):
                 old_inputs = old_node_inputs.get(node_id, {})
                 new_inputs = new_node_inputs.get(node_id, {})
                 if old_inputs != new_inputs:
-                    models.Node.objects.get(id=node_id).get_logic().handle_inputs_changed(new_inputs)
+                    nodes[node_id].get_logic().handle_inputs_changed(new_inputs)
 
             # Update cache
             old_node_inputs = new_node_inputs
 
         # Finally apply state to devices
-        for node in models.Node.objects.all():
+        for node in nodes.values():
             node.get_logic().apply_state_to_devices()

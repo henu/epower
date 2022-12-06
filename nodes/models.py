@@ -27,14 +27,19 @@ class Node(models.Model):
 
     def get_logic(self):
 
-        # Some extra security, make sure logic class is allowed in settings
-        if self.logic_class not in settings.NODE_LOGIC_CLASSES:
-            raise Exception('Invalid logic_class!')
+        # To prevent re-creating this object every time, use simple local caching
+        if not hasattr(self, '_cached_logic'):
 
-        cls = utils.import_dot_path(self.logic_class)
+            # Some extra security, make sure logic class is allowed in settings
+            if self.logic_class not in settings.NODE_LOGIC_CLASSES:
+                raise Exception('Invalid logic_class!')
 
-        # Create a new instance from the class
-        return cls(self)
+            cls = utils.import_dot_path(self.logic_class)
+
+            # Create a new instance from the class
+            self._cached_logic = cls(self)
+
+        return self._cached_logic
 
     def _state_cache_key(self):
         return f'node_state_{self.id}'
