@@ -153,6 +153,7 @@ NODE_LOGIC_CLASSES = [
     'nodes.logics.SimpleCheapestHours',
     'nodes.logics.TapoP100',
     'nodes.logics.Clock',
+    'nodes.logics.MelCloud',
 ]
 
 

@@ -3,5 +3,6 @@ Django==4.1.1
 djangorestframework==3.14.0
 entsoe-py==0.5.8
 pandas==1.4.4
+pymelcloud==2.11.0
 pymemcache==3.5.2
 PyP100==0.0.19
