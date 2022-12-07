@@ -11,3 +11,7 @@ sudo -H -u epower bash -c "cd ~epower/epower && source venv/bin/activate && ./ma
 
 # Restart uWSGI
 service uwsgi restart
+
+# Also upgrade the script that checks updates
+cp ~epower/epower/ansible/files/check_updates.bash ~/check_updates.bash
+chmod +x ~/check_updates.bash
