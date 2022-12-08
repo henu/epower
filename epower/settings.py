@@ -157,4 +157,4 @@ NODE_LOGIC_CLASSES = [
 ]
 
 
-from .local_settings import *
+from .local_settings import *  # NOQA

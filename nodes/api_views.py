@@ -54,6 +54,6 @@ class TimezonesListView(views.APIView):
             timezones.append([
                 tz,
                 '{} ({})'.format(tz, get_timezone_location(tz, locale=locale))
-            ]);
+            ])
 
         return response.Response(timezones)

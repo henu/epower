@@ -5,11 +5,11 @@ import json
 import pandas
 import xml.dom.minidom
 
-from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
 from varstorage.models import Variable
+
 
 def get_from_cache():
     prices = cache.get('prices')
