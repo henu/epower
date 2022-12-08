@@ -150,10 +150,10 @@ REST_FRAMEWORK = {
 
 
 NODE_LOGIC_CLASSES = [
-    'nodes.logics.SimpleCheapestHours',
-    'nodes.logics.TapoP100',
-    'nodes.logics.Clock',
-    'nodes.logics.MelCloud',
+    'nodes.logics.simple_cheapest_hours.SimpleCheapestHours',
+    'nodes.logics.tapo_p100.TapoP100',
+    'nodes.logics.clock.Clock',
+    'nodes.logics.melcloud.MelCloud',
 ]
 
 
