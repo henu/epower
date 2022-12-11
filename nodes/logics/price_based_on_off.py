@@ -1,4 +1,4 @@
-import dateutil
+import dateutil.parser
 import decimal
 
 from django.utils import timezone
@@ -53,17 +53,17 @@ class PriceBasedOnOff(logic.Logic):
         # If there are no ranges at all, then return True
         ranges = self.node.get_state().get('ranges', [])
         if not ranges:
-            return True
+            return {'power': True}
 
         # Try to find the current range
         for start, end, state in ranges:
             start = dateutil.parser.parse(start)
             end = dateutil.parser.parse(end)
             if start <= timezone.now() <= end:
-                return state
+                return {'power': state}
 
         # If range was not found, then return opposite what the latest range said
-        return not ranges[-1][2]
+        return {'power': not ranges[-1][2]}
 
     def handle_updated_prices(self, prices):
 
