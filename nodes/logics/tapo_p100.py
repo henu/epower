@@ -1,8 +1,13 @@
 from django.utils.translation import gettext_lazy, gettext as _
 
+import logging
 from PyP100 import PyP100
+import requests.exceptions
 
 from . import logic, validators
+
+
+logger = logging.getLogger(__name__)
 
 
 class TapoP100(logic.Logic):
@@ -40,15 +45,18 @@ class TapoP100(logic.Logic):
         ip = self.node.settings.get('ip')
         username = self.node.settings.get('username')
         password = self.node.settings.get('password')
-        # Establish connection
-        p100 = PyP100.P100(ip, username, password)
-        p100.handshake()
-        p100.login()
-        # Update state
-        if self.node.get_state().get('power'):
-            p100.turnOn()
-        else:
-            p100.turnOff()
+        try:
+            # Establish connection
+            p100 = PyP100.P100(ip, username, password)
+            p100.handshake()
+            p100.login()
+            # Update state
+            if self.node.get_state().get('power'):
+                p100.turnOn()
+            else:
+                p100.turnOff()
+        except requests.exceptions.ConnectTimeout:
+            logger.error('Unable to connect to Tapo smartplug at {}'.format(ip))
 
     def get_settings_errors(self, settings, instance=None):
         settings_error = {}

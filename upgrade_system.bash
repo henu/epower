@@ -12,6 +12,10 @@ sudo -H -u epower bash -c "cd ~epower/epower && source venv/bin/activate && ./ma
 # Restart uWSGI
 /usr/sbin/service uwsgi restart
 
-# Also upgrade the script that checks updates
+# Upgrade the script that checks updates
 cp ~epower/epower/ansible/files/check_updates.bash ~/check_updates.bash
 chmod +x ~/check_updates.bash
+
+# Upgrade the cron script
+sudo -H -u epower bash -c "cp ~epower/epower/ansible/files/cron.bash ~epower/epower/cron.bash"
+sudo -H -u epower bash -c "chmod +x ~epower/epower/cron.bash"
