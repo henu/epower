@@ -13,7 +13,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
 
         try:
-            with django_lock.lock('run_periodic_tasks', blocking=False):
+            with django_lock.lock('run_periodic_tasks', blocking=False, timeout=60 * 60 * 4):
 
                 # Fetch all Nodes to memory. This way, we don't have to fetch them multiple times,
                 # and they can do for example some local catching in them. The Logics inside Nodes
