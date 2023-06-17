@@ -35,11 +35,11 @@ class Command(BaseCommand):
                         # Store new prices to cache
                         prices.store_to_cache(new_prices)
 
-        # TODO: If connection is removed, let power go down!
                 # Let connections flow through the network.
                 # A simple cache is used to detect changes in input values. The cache is not persisent,
                 # because it is better to be sure that at least some recalculation happens on every run.
                 old_node_inputs = defaultdict(dict)
+                updated_node_ids = set()
                 # All Nodes are looped several times to keep things easier to
                 # code and to make possible to have recurrent connections.
                 for i in range(10):
@@ -61,9 +61,15 @@ class Command(BaseCommand):
                         new_inputs = new_node_inputs.get(node_id, {})
                         if old_inputs != new_inputs:
                             nodes[node_id].get_logic().handle_inputs_changed(new_inputs)
+                            updated_node_ids.add(node_id)
 
                     # Update cache
                     old_node_inputs = new_node_inputs
+
+                # Go through nodes that were not updated, and run `handle_inputs_changed()` with empty input.
+                for node in nodes.values():
+                    if node.id not in updated_node_ids:
+                        node.get_logic().handle_inputs_changed({})
 
                 # Finally apply state to devices
                 for node in nodes.values():

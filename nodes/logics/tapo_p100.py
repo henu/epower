@@ -38,9 +38,17 @@ class TapoP100(logic.Logic):
         return {'power'}
 
     def handle_inputs_changed(self, inputs):
-        self.node.set_state({'power': bool(inputs.get('power'))})
+        self.node.set_state({'power': inputs.get('power')})
 
     def apply_state_to_devices(self):
+        # Get and parse state
+        power = self.node.get_state().get('power')
+        # None means, do nothing
+        if power is None:
+            return
+        # Convert to boolean
+        power = bool(power)
+
         # Get settings
         ip = self.node.settings.get('ip')
         username = self.node.settings.get('username')
@@ -51,7 +59,7 @@ class TapoP100(logic.Logic):
             p100.handshake()
             p100.login()
             # Update state
-            if self.node.get_state().get('power'):
+            if power:
                 p100.turnOn()
             else:
                 p100.turnOff()

@@ -54,14 +54,16 @@ class MelCloud(logic.Logic):
         }
 
     def handle_inputs_changed(self, inputs):
-        self.node.set_state({'power': bool(inputs.get('power'))})
+        self.node.set_state({'power': inputs.get('power')})
 
     def apply_state_to_devices(self):
         # Get state
         power = self.node.get_state().get('power')
-        # Validate state
-        if power not in [True, False]:
+        # None means, do nothing
+        if power is None:
             return
+        # Convert to boolean
+        power = bool(power)
         # Do the magic
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self._set_power(power))
