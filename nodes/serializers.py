@@ -68,7 +68,12 @@ class NodeSerializer(serializers.ModelSerializer):
             if node_settings_error:
                 raise serializers.ValidationError({'settings': node_settings_error})
 
-        return super().update(instance, validated_data)
+        # Update settings, and inform logic about this
+        old_settings = instance.settings
+        update_result = super().update(instance, validated_data)
+        logic.handle_updated_settings(old_settings, node_settings)
+
+        return update_result
 
 
 class ConnectionSerializer(serializers.ModelSerializer):

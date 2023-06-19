@@ -27,6 +27,9 @@ class Logic:
     def handle_updated_prices(self, prices):
         pass
 
+    def handle_updated_settings(self, old_settings, new_settings):
+        pass
+
     def apply_state_to_devices(self):
         pass
 

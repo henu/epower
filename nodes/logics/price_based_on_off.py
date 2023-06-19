@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy, gettext as _
 
 from . import logic
+from .. import prices as prices_module
 
 
 # TODO: There is a problem, that if you put certain difficult min on/off times, it will not be able
@@ -116,6 +117,23 @@ class PriceBasedOnOff(logic.Logic):
         state = self.node.get_state()
         state['ranges'] = [(start.isoformat(), end.isoformat(), range_state) for start, end, range_state in ranges]
         self.node.set_state(state)
+
+    def handle_updated_settings(self, old_settings, new_settings):
+
+        # If settings didn't really change, then do nothing
+        if old_settings == new_settings:
+            return
+
+        # Remove all current ranges
+        # TODO: It would be nice if only current and the future ranges would be removed!
+        state = self.node.get_state()
+        state['ranges'] = []
+        self.node.set_state(state)
+
+        # Run the same function that is run when prices are updated.
+        prices = prices_module.get_from_cache()
+        if prices:
+            self.handle_updated_prices(prices)
 
     def get_settings_errors(self, settings):
         settings_error = {}
