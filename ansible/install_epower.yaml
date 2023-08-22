@@ -7,6 +7,11 @@
     django_secret_key: "{{ lookup('password', '/dev/null length=32') }}"
   tasks:
 
+  - name: Configure Git for root
+    ansible.builtin.copy:
+      src: files/root_gitconfig
+      dest: /root/.gitconfig
+
   - name: Generate MySQL password
     ansible.builtin.set_fact:
       mysql_password: "{{ lookup('password', '/dev/null length=15 chars=ascii_letters,digits') }}"
