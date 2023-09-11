@@ -141,7 +141,7 @@ class PriceBasedOnOff(logic.Logic):
         if 'min_on_hours' not in settings:
             if not self.node:
                 settings_error['min_on_hours'] = [_('This field is required!')]
-            min_on_hours = self.node.settings.get('min_on_hours', SimpleCheapestHours.DEFAULT_ON_HOURS)
+            min_on_hours = self.node.settings.get('min_on_hours', 1)
         else:
             min_on_hours = settings['min_on_hours']
             if not isinstance(min_on_hours, int):
@@ -154,7 +154,7 @@ class PriceBasedOnOff(logic.Logic):
         if 'max_on_hours' not in settings:
             if not self.node:
                 settings_error['max_on_hours'] = [_('This field is required!')]
-            max_on_hours = self.node.settings.get('max_on_hours', SimpleCheapestHours.DEFAULT_ON_HOURS)
+            max_on_hours = self.node.settings.get('max_on_hours', 1)
         else:
             max_on_hours = settings['max_on_hours']
             if not isinstance(max_on_hours, int):
@@ -169,7 +169,7 @@ class PriceBasedOnOff(logic.Logic):
         if 'min_off_hours' not in settings:
             if not self.node:
                 settings_error['min_off_hours'] = [_('This field is required!')]
-            min_off_hours = self.node.settings.get('min_off_hours', SimpleCheapestHours.DEFAULT_ON_HOURS)
+            min_off_hours = self.node.settings.get('min_off_hours', 1)
         else:
             min_off_hours = settings['min_off_hours']
             if not isinstance(min_off_hours, int):
@@ -182,7 +182,7 @@ class PriceBasedOnOff(logic.Logic):
         if 'max_off_hours' not in settings:
             if not self.node:
                 settings_error['max_off_hours'] = [_('This field is required!')]
-            max_off_hours = self.node.settings.get('max_off_hours', SimpleCheapestHours.DEFAULT_ON_HOURS)
+            max_off_hours = self.node.settings.get('max_off_hours', 1)
         else:
             max_off_hours = settings['max_off_hours']
             if not isinstance(max_off_hours, int):
@@ -214,7 +214,8 @@ class PriceBasedOnOff(logic.Logic):
                 return
 
             hours = round((ranges_now[-1][1] - ranges_now[0][0]).total_seconds() / 3600)
-            # If this range doesn't fit here, then add it partially, but only use this partial range in price calculation
+            # If this range doesn't fit here, then add it partially,
+            # but only use this partial range in price calculation
             if len(prices) < range_min:
                 hours += len(prices)
                 if next_state:

@@ -1,4 +1,4 @@
-from django.utils.translation import gettext_lazy, gettext as _
+from django.utils.translation import gettext as _
 
 from . import logic
 
@@ -9,7 +9,8 @@ class LogicalAnd(logic.Logic):
         return _('AND port')
 
     def get_description(self):
-        return _('If all inputs are considered true, then returns last of them. Otherwise returns first input that is considered as false.')
+        return _('If all inputs are considered true, then returns last of them. '
+                 'Otherwise returns first input that is considered as false.')
 
     def get_input_keys(self):
         return {'input1', 'input2'}
