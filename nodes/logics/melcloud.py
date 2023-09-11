@@ -31,6 +31,18 @@ class MelCloud(logic.Logic):
                 'type': 'password',
                 'label': gettext_lazy('Password'),
             },
+            'temp_on': {
+                'type': 'integer',
+                'label': gettext_lazy('Target temperature when power is on'),
+                'min': 16,
+                'max': 31,
+            },
+            'temp_off': {
+                'type': 'integer',
+                'label': gettext_lazy('Target temperature when power is off'),
+                'min': 16,
+                'max': 31,
+            },
         }
 
     def get_input_keys(self):
@@ -62,11 +74,14 @@ class MelCloud(logic.Logic):
         # None means, do nothing
         if power is None:
             return
-        # Convert to boolean
-        power = bool(power)
+        # Convert to temperature
+        if power:
+            target_temp = self.node.settings.get('temp_on') or 20
+        else:
+            target_temp = self.node.settings.get('temp_off') or 20
         # Do the magic
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self._set_power(power))
+        loop.run_until_complete(self._set_target_temp(target_temp))
 
     def get_settings_errors(self, settings, instance=None):
         settings_error = {}
@@ -123,7 +138,8 @@ class MelCloud(logic.Logic):
                 'target_temp': target_temp,
             }
 
-    async def _set_power(self, power):
+    async def _set_target_temp(self, target_temp):
+        target_temp = min(31, max(16, int(target_temp)))
 
         async with aiohttp.ClientSession() as session:
             token = await pymelcloud.login(
@@ -138,9 +154,9 @@ class MelCloud(logic.Logic):
                 if device.name.lower() == (self.node.settings.get('name') or '').lower():
 
                     # Only update if power state differs
-                    if power != device.get_device_prop('Power'):
+                    if target_temp != int(device.get_device_prop('SetTemperature') or 0):
                         await device.update()
-                        await device.set({pymelcloud.device.PROPERTY_POWER: power})
+                        await device.set({'target_temperature': target_temp})
 
                     break
 
