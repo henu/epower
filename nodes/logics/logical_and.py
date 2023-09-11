@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy, gettext as _
 from . import logic
 
 
-class And(logic.Logic):
+class LogicalAnd(logic.Logic):
 
     def get_name(self):
         return _('AND port')

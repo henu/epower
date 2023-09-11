@@ -150,7 +150,7 @@ REST_FRAMEWORK = {
 
 
 NODE_LOGIC_CLASSES = [
-    'nodes.logics.and.And',
+    'nodes.logics.logical_and.LogicalAnd',
     'nodes.logics.clock.Clock',
     'nodes.logics.melcloud.MelCloud',
     'nodes.logics.price_based_on_off.PriceBasedOnOff',
